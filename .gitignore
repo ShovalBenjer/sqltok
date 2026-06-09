@@ -17,6 +17,7 @@ venv/
 benchmarks/data/
 benchmarks/results/*.jsonl
 benchmarks/results/*.md
+benchmarks/results/predict_*.json
 benchmarks/.llm_cache/
 benchmarks/third_party/bird_eval/*.py
 
