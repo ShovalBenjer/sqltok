@@ -20,10 +20,18 @@ from __future__ import annotations
 
 from .context import SchemaContext
 from .ddl import parse_ddl
+from .grounding import SchemaGrounding
 from .introspect import introspect_sqlite
 from .manager import SchemaBudgetManager
 from .models import Column, ForeignKey, Schema, Table
 from .retrieval import RankedTable, TableRetriever
+from .select import (
+    AgenticSelector,
+    CoverageSelector,
+    RelevanceGreedySelector,
+    RerankSelector,
+    SchemaSelector,
+)
 from .tokenizer import TokenCounter
 
 __version__ = "0.1.0"
@@ -35,6 +43,12 @@ __all__ = [
     "Table",
     "Column",
     "ForeignKey",
+    "SchemaSelector",
+    "CoverageSelector",
+    "RelevanceGreedySelector",
+    "RerankSelector",
+    "AgenticSelector",
+    "SchemaGrounding",
     "TableRetriever",
     "RankedTable",
     "TokenCounter",

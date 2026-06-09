@@ -1,26 +1,23 @@
 """The public entry point: :class:`SchemaBudgetManager`.
 
-A manager wraps a parsed schema, a BM25 (optionally hybrid) retriever, and a
-``tiktoken`` token counter, and turns a natural-language question plus a token
-budget into a compact, prompt-ready schema context.
+A manager wraps a parsed schema and a :class:`~sqltok.select.base.SchemaSelector`
+and turns a natural-language question plus a token budget into a compact,
+prompt-ready schema context. The default selector is the value-grounded
+submodular :class:`~sqltok.select.coverage.CoverageSelector`; the BM25
+:class:`~sqltok.select.greedy.RelevanceGreedySelector` is available as a baseline.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from pathlib import Path
 
-import numpy as np
-
-from .budget import build_budgeted_context
 from .context import SchemaContext
 from .ddl import parse_ddl
 from .introspect import introspect_sqlite
 from .models import Schema
-from .retrieval import TableRetriever
+from .select.base import SchemaSelector
+from .select.coverage import CoverageSelector
 from .tokenizer import DEFAULT_ENCODING, TokenCounter
-
-EmbeddingFn = Callable[[Sequence[str]], "np.ndarray"]
 
 
 class SchemaBudgetManager:
@@ -33,11 +30,8 @@ class SchemaBudgetManager:
     Args:
         schema: The schema to serve contexts from.
         encoding_name: ``tiktoken`` encoding used for all token counting.
-        use_embeddings: Enable hybrid dense retrieval (off by default to keep the
-            core dependency-light). Requires ``embedding_fn``.
-        embedding_fn: Callable mapping strings to embedding vectors; only used
-            when ``use_embeddings`` is ``True``.
-        embedding_weight: Blend weight for the embedding score during fusion.
+        selector: The selection strategy. Defaults to the value-grounded
+            submodular :class:`CoverageSelector`.
     """
 
     def __init__(
@@ -45,17 +39,12 @@ class SchemaBudgetManager:
         schema: Schema,
         *,
         encoding_name: str = DEFAULT_ENCODING,
-        use_embeddings: bool = False,
-        embedding_fn: EmbeddingFn | None = None,
-        embedding_weight: float = 0.5,
+        selector: SchemaSelector | None = None,
     ) -> None:
         self.schema = schema
         self.counter = TokenCounter(encoding_name)
-        self.retriever = TableRetriever(
-            schema,
-            use_embeddings=use_embeddings,
-            embedding_fn=embedding_fn,
-            embedding_weight=embedding_weight,
+        self.selector: SchemaSelector = (
+            selector if selector is not None else CoverageSelector(schema)
         )
 
     # -- constructors ---------------------------------------------------------
@@ -67,9 +56,7 @@ class SchemaBudgetManager:
         *,
         sample_rows: int = 3,
         encoding_name: str = DEFAULT_ENCODING,
-        use_embeddings: bool = False,
-        embedding_fn: EmbeddingFn | None = None,
-        embedding_weight: float = 0.5,
+        selector: SchemaSelector | None = None,
     ) -> SchemaBudgetManager:
         """Build a manager by introspecting a SQLite database file.
 
@@ -77,18 +64,10 @@ class SchemaBudgetManager:
             db_path: Path to the SQLite database.
             sample_rows: Rows to sample per table for values/example rows.
             encoding_name: ``tiktoken`` encoding name.
-            use_embeddings: Enable hybrid dense retrieval.
-            embedding_fn: Embedding callable (required if ``use_embeddings``).
-            embedding_weight: Blend weight for the embedding score.
+            selector: Optional selection strategy override.
         """
         schema = introspect_sqlite(db_path, sample_rows=sample_rows)
-        return cls(
-            schema,
-            encoding_name=encoding_name,
-            use_embeddings=use_embeddings,
-            embedding_fn=embedding_fn,
-            embedding_weight=embedding_weight,
-        )
+        return cls(schema, encoding_name=encoding_name, selector=selector)
 
     @classmethod
     def from_ddl(
@@ -97,9 +76,7 @@ class SchemaBudgetManager:
         *,
         dialect: str | None = None,
         encoding_name: str = DEFAULT_ENCODING,
-        use_embeddings: bool = False,
-        embedding_fn: EmbeddingFn | None = None,
-        embedding_weight: float = 0.5,
+        selector: SchemaSelector | None = None,
     ) -> SchemaBudgetManager:
         """Build a manager from raw ``CREATE TABLE`` DDL.
 
@@ -107,18 +84,10 @@ class SchemaBudgetManager:
             ddl: One or more ``CREATE TABLE`` statements.
             dialect: Optional ``sqlglot`` dialect name.
             encoding_name: ``tiktoken`` encoding name.
-            use_embeddings: Enable hybrid dense retrieval.
-            embedding_fn: Embedding callable (required if ``use_embeddings``).
-            embedding_weight: Blend weight for the embedding score.
+            selector: Optional selection strategy override.
         """
         schema = parse_ddl(ddl, dialect=dialect)
-        return cls(
-            schema,
-            encoding_name=encoding_name,
-            use_embeddings=use_embeddings,
-            embedding_fn=embedding_fn,
-            embedding_weight=embedding_weight,
-        )
+        return cls(schema, encoding_name=encoding_name, selector=selector)
 
     # -- core API -------------------------------------------------------------
 
@@ -129,7 +98,6 @@ class SchemaBudgetManager:
         token_budget: int = 2000,
         include_sample_rows: bool = True,
         fk_expand: bool = True,
-        max_candidates: int | None = None,
     ) -> SchemaContext:
         """Build a token-budgeted schema context for ``question``.
 
@@ -139,11 +107,8 @@ class SchemaBudgetManager:
                 ``token_count`` is guaranteed not to exceed this.
             include_sample_rows: Attach one example row per included table when
                 it fits within budget.
-            fk_expand: Pull in foreign-key neighbours of selected tables if the
-                budget allows.
-            max_candidates: Cap the number of top-ranked tables considered during
-                the greedy fill (foreign-key expansion can still reach beyond it).
-                ``None`` considers every table.
+            fk_expand: Add foreign-key bridge/neighbour tables so the selection
+                is join-connected, budget permitting.
 
         Returns:
             A :class:`SchemaContext` with the rendered text, selected tables, and
@@ -151,15 +116,12 @@ class SchemaBudgetManager:
         """
         if token_budget <= 0:
             raise ValueError("token_budget must be positive")
-        ranked = self.retriever.rank(question)
-        return build_budgeted_context(
-            self.schema,
-            ranked,
+        return self.selector.select(
+            question,
             token_budget=token_budget,
             counter=self.counter,
             include_sample_rows=include_sample_rows,
             fk_expand=fk_expand,
-            max_candidates=max_candidates,
         )
 
     def full_schema_text(self, *, include_sample_rows: bool = True) -> str:

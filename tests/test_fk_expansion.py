@@ -1,8 +1,9 @@
-"""Tests for foreign-key expansion within the budget."""
+"""Tests for foreign-key neighbour expansion in the baseline selector."""
 
 from __future__ import annotations
 
-from sqltok import SchemaBudgetManager, parse_ddl
+from sqltok import RelevanceGreedySelector, parse_ddl
+from sqltok.tokenizer import TokenCounter
 
 
 def test_fk_neighbors_are_bidirectional(sample_ddl: str) -> None:
@@ -16,8 +17,7 @@ def test_fk_neighbors_are_bidirectional(sample_ddl: str) -> None:
 def test_fk_expansion_pulls_in_related_table() -> None:
     # A question that lexically matches only "orders". With the candidate scan
     # capped to the single top-ranked table, "customers" falls outside the
-    # window -- but because it is FK-connected to the selected "orders", FK
-    # expansion still pulls it in (while the unrelated table stays out).
+    # window -- but FK expansion still pulls it in, while "unrelated" stays out.
     ddl = """
     CREATE TABLE orders (
       id INTEGER PRIMARY KEY,
@@ -28,10 +28,9 @@ def test_fk_expansion_pulls_in_related_table() -> None:
     CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);
     CREATE TABLE unrelated (id INTEGER PRIMARY KEY, blob TEXT);
     """
-    mgr = SchemaBudgetManager.from_ddl(ddl)
-    ctx = mgr.build_context(
-        "orders total", token_budget=4000, fk_expand=True, max_candidates=1
-    )
+    schema = parse_ddl(ddl)
+    selector = RelevanceGreedySelector(schema, max_candidates=1)
+    ctx = selector.select("orders total", token_budget=4000, counter=TokenCounter())
     assert ctx.tables[0] == "orders"
     assert "customers" in ctx.tables
     assert "customers" in ctx.fk_expanded
@@ -48,9 +47,10 @@ def test_fk_expansion_can_be_disabled() -> None:
     );
     CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);
     """
-    mgr = SchemaBudgetManager.from_ddl(ddl)
-    ctx = mgr.build_context(
-        "orders total", token_budget=4000, fk_expand=False, max_candidates=1
+    schema = parse_ddl(ddl)
+    selector = RelevanceGreedySelector(schema, max_candidates=1)
+    ctx = selector.select(
+        "orders total", token_budget=4000, counter=TokenCounter(), fk_expand=False
     )
     assert ctx.fk_expanded == []
     assert "customers" not in ctx.tables
@@ -66,13 +66,10 @@ def test_fk_expansion_respects_budget() -> None:
     );
     CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, address TEXT, phone TEXT);
     """
-    mgr = SchemaBudgetManager.from_ddl(ddl)
-    # Budget large enough for orders but not for both.
-    orders_only = mgr.build_context("orders total", token_budget=4000)
-    tight = mgr.count_tokens(
-        parse_ddl(ddl).tables["orders"].render_ddl()
-    )
-    ctx = mgr.build_context("orders total", token_budget=tight + 1, fk_expand=True)
-    assert ctx.token_count <= tight + 1
+    schema = parse_ddl(ddl)
+    counter = TokenCounter()
+    orders_tokens = counter.count(schema.tables["orders"].render_ddl())
+    selector = RelevanceGreedySelector(schema, max_candidates=1)
+    ctx = selector.select("orders total", token_budget=orders_tokens + 1, counter=counter)
+    assert ctx.token_count <= orders_tokens + 1
     assert "orders" in ctx.tables
-    assert orders_only  # sanity
