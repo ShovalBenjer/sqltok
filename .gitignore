@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Benchmark artifacts (datasets and run outputs are never committed)
+benchmarks/data/
+benchmarks/results/*.jsonl
+benchmarks/results/*.md
+benchmarks/.llm_cache/
+benchmarks/third_party/bird_eval/*.py
+
+# Allow the results directory placeholder to be tracked
+!benchmarks/results/.gitkeep
