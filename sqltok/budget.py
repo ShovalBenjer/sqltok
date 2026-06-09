@@ -34,6 +34,7 @@ def build_budgeted_context(
     counter: TokenCounter,
     include_sample_rows: bool = True,
     fk_expand: bool = True,
+    max_candidates: int | None = None,
 ) -> SchemaContext:
     """Select tables greedily under a hard token budget.
 
@@ -47,11 +48,17 @@ def build_budgeted_context(
             dropped for that table rather than dropping the whole table.
         fk_expand: If ``True``, after greedy selection, also pull in tables that
             are foreign-key neighbours of selected tables, budget permitting.
+        max_candidates: If set, only the top-``max_candidates`` ranked tables are
+            considered during the greedy fill. Foreign-key expansion may still
+            pull in connected tables that fall outside this window -- which is
+            the point of the feature on wide schemas where scanning every table
+            is wasteful.
 
     Returns:
         A :class:`SchemaContext` whose ``token_count`` is guaranteed ``<=``
         ``token_budget``.
     """
+    candidates = ranked if max_candidates is None else ranked[:max_candidates]
     selected: list[str] = []
     sample_flags: dict[str, bool] = {}
     fk_added: list[str] = []
@@ -74,7 +81,7 @@ def build_budgeted_context(
                 return True
         return False
 
-    for ranked_table in ranked:
+    for ranked_table in candidates:
         try_add(ranked_table.name)
 
     if fk_expand:

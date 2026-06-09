@@ -129,6 +129,7 @@ class SchemaBudgetManager:
         token_budget: int = 2000,
         include_sample_rows: bool = True,
         fk_expand: bool = True,
+        max_candidates: int | None = None,
     ) -> SchemaContext:
         """Build a token-budgeted schema context for ``question``.
 
@@ -140,6 +141,9 @@ class SchemaBudgetManager:
                 it fits within budget.
             fk_expand: Pull in foreign-key neighbours of selected tables if the
                 budget allows.
+            max_candidates: Cap the number of top-ranked tables considered during
+                the greedy fill (foreign-key expansion can still reach beyond it).
+                ``None`` considers every table.
 
         Returns:
             A :class:`SchemaContext` with the rendered text, selected tables, and
@@ -155,6 +159,7 @@ class SchemaBudgetManager:
             counter=self.counter,
             include_sample_rows=include_sample_rows,
             fk_expand=fk_expand,
+            max_candidates=max_candidates,
         )
 
     def full_schema_text(self, *, include_sample_rows: bool = True) -> str:
