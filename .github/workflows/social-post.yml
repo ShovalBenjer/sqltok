@@ -1,0 +1,55 @@
+name: Social post
+
+# Posts a draft to a social platform using the social-publish skill.
+# Secrets live in repo Settings -> Secrets and variables -> Actions.
+# Defaults to a dry run. Set the "confirm" input to true to actually publish.
+#
+# Required secrets per platform (add only the ones you use):
+#   Bluesky:   BLUESKY_HANDLE, BLUESKY_APP_PASSWORD
+#   Mastodon:  MASTODON_BASE_URL, MASTODON_TOKEN
+#   dev.to:    DEVTO_API_KEY
+#   Typefully: TYPEFULLY_API_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to post to"
+        type: choice
+        options: [bluesky, mastodon, devto, typefully]
+        default: bluesky
+      draft:
+        description: "Path to the draft file in the repo"
+        type: string
+        default: .claude/skills/social-publish/examples/bluesky.txt
+      confirm:
+        description: "Actually publish (leave false for a dry run)"
+        type: boolean
+        default: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Lint the draft (house style)
+        run: python .claude/skills/social-publish/scripts/lint_post.py "${{ inputs.draft }}"
+
+      - name: Publish
+        env:
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
+          MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
+          DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
+          TYPEFULLY_API_KEY: ${{ secrets.TYPEFULLY_API_KEY }}
+        run: |
+          ARGS="--platform ${{ inputs.platform }} --file ${{ inputs.draft }}"
+          if [ "${{ inputs.confirm }}" = "true" ]; then
+            ARGS="$ARGS --confirm"
+          fi
+          python .claude/skills/social-publish/scripts/publish.py $ARGS
