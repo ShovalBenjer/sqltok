@@ -50,6 +50,8 @@ print(ctx.tables)        # ['customers', 'orders']
 print(ctx.token_count)   # measured, guaranteed at or below the budget
 ```
 
+Measured result: across all 500 BIRD mini-dev questions, at a 1000-token budget SQLTok reduces schema-context tokens by 57 percent and total prompt input by 53 percent, deterministically and with no model required. See [Benchmark](#benchmark).
+
 This release (v0.1) provides the schema token budget manager and a BIRD benchmark harness. The semantic cache, intent canonicalizer, and framework integrations are described in the [roadmap](#roadmap) and are not part of this release.
 
 ## Why SQLTok
@@ -111,13 +113,9 @@ mgr = SchemaBudgetManager(schema, selector=RelevanceGreedySelector(schema))
 
 ## How it works
 
-SQLTok turns a schema, a question, and a budget into a budgeted, joinable schema string in four stages.
+SQLTok turns a schema, a question, and a budget into a budgeted, joinable schema string in four stages. For a longer, illustrated walkthrough with the full math, see the [visual guide](docs/blog/visual-guide-to-sqltok.md).
 
-```
-question --> [1 Grounding] --> [2 Coverage] --> [3 FK Steiner] --> SchemaContext
-schema   -->  what hits         submodular       connectivity      text, tables,
-budget   -->  what              budgeting        (joinable)        token_count
-```
+<p align="center"><img src="assets/diagrams/pipeline.svg" alt="SQLTok pipeline: grounding, coverage, foreign-key Steiner connectivity, and a measured budget" width="900" /></p>
 
 ### Stage 1: value grounding
 
@@ -194,14 +192,16 @@ sqltok/
 
 The harness in [`benchmarks/`](benchmarks/) runs two arms with the same model and the same prompt template, differing only in the schema context: a baseline that sends the full schema dump, and SQLTok at budgets of 1000, 2000, and 4000 tokens. Execution accuracy is scored by the official BIRD script rather than a custom checker.
 
-| arm | schema tokens (mean) | schema tokens (p95) | total input tokens | execution accuracy | estimated cost |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| baseline (full dump) | pending | pending | pending | pending | pending |
-| sqltok at 1000 | pending | pending | pending | pending | pending |
-| sqltok at 2000 | pending | pending | pending | pending | pending |
-| sqltok at 4000 | pending | pending | pending | pending | pending |
+The table below reports the token results across all 500 BIRD mini-dev questions over 11 databases, measured with `tiktoken` (`cl100k_base`). These numbers are deterministic and require no model. The baseline is the full schema dump with one sample row per table.
 
-The numbers are filled in from a full run. The underlying technique of budget-aware schema reduction has shown up to about 87 percent schema-token reduction at competitive accuracy in the work it builds on (Datalake Agent, reference 1).
+| arm | schema tokens (mean) | schema tokens (p95) | total input tokens | token reduction vs baseline | execution accuracy |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| baseline (full dump) | 1161 | 2961 | 629,819 | reference | keyed run pending |
+| sqltok at 1000 | 497 | 876 | 298,234 | 57% schema, 53% total | keyed run pending |
+| sqltok at 2000 | 648 | 1617 | 373,675 | 44% schema, 41% total | keyed run pending |
+| sqltok at 4000 | 752 | 2467 | 425,687 | 35% schema, 32% total | keyed run pending |
+
+At a 1000-token budget SQLTok cuts schema context by 57 percent and total prompt input by 53 percent across the suite. Execution accuracy is filled in from a keyed run with the official BIRD script. For reference, the budget-aware schema-reduction approach this builds on has reported up to about 87 percent schema-token reduction at competitive accuracy (Datalake Agent, reference 1). See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) for the full run details.
 
 Reproduce with a free run that needs no API keys, using the mock client:
 

@@ -1,28 +1,32 @@
 #!/usr/bin/env bash
-# Download BIRD mini-dev (MINIDEV) data into benchmarks/data/.
-# The dataset is NOT committed to this repo; fetch it here.
-#
-# Layout produced (consumed by run_bird.py defaults):
-#   benchmarks/data/questions.json
-#   benchmarks/data/dev_databases/<db_id>/<db_id>.sqlite
-#
-# See https://github.com/bird-bench/mini_dev for the canonical source and terms.
+# Download BIRD mini-dev (MINIDEV) into benchmarks/data/.
+# The dataset is NOT committed to this repo. See https://github.com/bird-bench/mini_dev
+# and https://bird-bench.github.io/ for the canonical source and terms of use.
 set -euo pipefail
 
 DATA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/data"
 mkdir -p "$DATA_DIR"
+cd "$DATA_DIR"
 
-echo "BIRD mini-dev is distributed by the BIRD-bench team."
-echo "Download 'minidev.zip' (or 'MINIDEV') from:"
-echo "  https://github.com/bird-bench/mini_dev"
-echo "  https://bird-bench.github.io/"
+URL="https://bird-bench.oss-cn-beijing.aliyuncs.com/minidev.zip"
+
+if [ ! -f minidev.zip ]; then
+  echo "Downloading BIRD mini-dev (about 760 MB) ..."
+  curl -L --connect-timeout 30 --max-time 1800 -o minidev.zip "$URL"
+fi
+
+echo "Extracting ..."
+unzip -q -o minidev.zip
+
 echo
-echo "Then arrange it as:"
-echo "  $DATA_DIR/questions.json            # the mini_dev_sqlite.json question list"
-echo "  $DATA_DIR/dev_databases/<db_id>/<db_id>.sqlite"
+echo "Done. The SQLite questions and databases are at:"
+echo "  $DATA_DIR/minidev/MINIDEV/mini_dev_sqlite.json"
+echo "  $DATA_DIR/minidev/MINIDEV/dev_databases/<db_id>/<db_id>.sqlite"
 echo
-echo "If the question file is named 'mini_dev_sqlite.json', either rename it to"
-echo "questions.json or pass --questions <path> to run_bird.py."
+echo "Run the benchmark with:"
+echo "  python benchmarks/run_bird.py --provider mock \\"
+echo "    --questions $DATA_DIR/minidev/MINIDEV/mini_dev_sqlite.json \\"
+echo "    --db-root  $DATA_DIR/minidev/MINIDEV/dev_databases"
 echo
-echo "This script intentionally does not auto-download to respect BIRD's terms;"
-echo "follow the links above and place the files as shown."
+echo "If the mirror above is unavailable, the dataset is also on Hugging Face:"
+echo "  https://huggingface.co/datasets/birdsql/bird_mini_dev"
