@@ -1,0 +1,6 @@
+SQLTok is a schema token budget manager for Text-to-SQL. It selects only the relevant tables and columns for a question, within a token budget, and keeps them joinable with foreign-key bridges.
+
+On BIRD mini-dev it cut schema-context tokens by 57 percent at a 1000-token budget, measured with tiktoken. Python, no network calls in the core.
+
+pip install sqltok
+https://github.com/ShovalBenjer/sqltok

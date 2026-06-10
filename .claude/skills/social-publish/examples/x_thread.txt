@@ -1,0 +1,22 @@
+SQLTok: send less schema to your Text-to-SQL LLM.
+
+On BIRD mini-dev it cut schema-context tokens by 57 percent at a 1000-token budget, measured with tiktoken.
+
+pip install sqltok
+
+
+
+The problem. Pasting the full schema into every prompt is the main hidden cost of Text-to-SQL. A large warehouse can produce 50,000 token prompts, which are slow and lower accuracy, because the model has to find a few relevant tables among thousands.
+
+
+
+How it works. Ground question words to table names and sampled cell values with MinHash and LSH, so a word like France matches customers.country. Then select tables by submodular coverage under the budget. Then add foreign-key bridges so the result is joinable.
+
+
+
+Why the value step matters. The word that decides the join often lives in the data, not the column names. Matching cell values catches it. BM25 over names does not.
+
+
+
+Core is Python and NumPy, no network calls. BM25 is the baseline so the gains are attributable. Code and a visual guide with the full math:
+https://github.com/ShovalBenjer/sqltok

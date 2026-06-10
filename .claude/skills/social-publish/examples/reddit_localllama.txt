@@ -1,0 +1,19 @@
+Title: SQLTok, an open-source library that trims the schema you send to a Text-to-SQL LLM (57 percent fewer schema tokens on BIRD mini-dev)
+
+Body:
+
+I kept paying for huge prompts in Text-to-SQL because the whole schema went into every request. SQLTok selects only the relevant tables and columns for a question, within a token budget, and returns a compact schema string.
+
+On BIRD mini-dev (500 questions, 11 databases) it cut schema-context tokens by 57 percent and total prompt input by 53 percent at a 1000-token budget, measured with tiktoken. Those numbers are deterministic and need no model.
+
+The selection has three parts:
+- Grounding: match question words to table names and sampled cell values with a native MinHash and LSH index, so a value like France grounds to customers.country.
+- Coverage: pick tables by submodular maximum coverage under the budget, with the standard greedy guarantee.
+- Connectivity: add the minimal foreign-key bridge tables so the selected schema is joinable.
+
+Core is Python and NumPy with no network calls. BM25 ships as a baseline so the gains are attributable. Execution accuracy on BIRD is the next number I am adding, with the official eval script.
+
+pip install sqltok
+https://github.com/ShovalBenjer/sqltok
+
+Happy to answer questions about the grounding or the budgeting.

@@ -1,0 +1,14 @@
+Show HN: SQLTok, send less schema to your Text-to-SQL LLM
+
+SQLTok is a Python library that picks only the relevant tables and columns for a question, within a token budget, and returns a compact schema string for the prompt.
+
+On BIRD mini-dev (500 questions, 11 databases) it cut schema-context tokens by 57 percent and total prompt input by 53 percent at a 1000-token budget, measured with tiktoken. The token figures are deterministic and need no model.
+
+How it works in three steps. First, ground question words to table names and sampled cell values with a native MinHash and LSH index, so a word like France matches customers.country even though no column says country. Second, select tables by submodular maximum coverage under the token budget, with the standard greedy guarantee. Third, add the minimal foreign-key bridge tables so the selected schema is joinable.
+
+The core has no network calls and no heavy dependencies. BM25 ships as the baseline selector so the gains are attributable.
+
+pip install sqltok
+Code: https://github.com/ShovalBenjer/sqltok
+
+Feedback welcome, especially on the value grounding and the connectivity heuristic.
