@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sqltok"
+version = "0.1.0"
+description = "Schema Token Budget Manager for Text2SQL agents: retrieve only the most relevant schema within a token budget."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "SQLTok contributors" }]
+keywords = ["text2sql", "llm", "schema", "tokens", "bm25", "tiktoken", "nl2sql"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "tiktoken>=0.7",
+    "bm25s>=0.2",
+    "sqlglot>=25",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+embeddings = ["sentence-transformers>=2.2"]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+benchmark = [
+    "anthropic>=0.40",
+    "openai>=1.40",
+]
+
+[project.urls]
+Homepage = "https://github.com/shovalbenjer/sqltok"
+Repository = "https://github.com/shovalbenjer/sqltok"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sqltok"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"benchmarks/*" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+exclude = ["benchmarks/", "tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]
