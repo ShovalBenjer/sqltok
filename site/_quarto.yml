@@ -1,0 +1,44 @@
+project:
+  type: website
+  output-dir: _site
+  resources:
+    - assets/**
+
+website:
+  title: "SQLTok"
+  description: "A schema token budget manager for Text-to-SQL. Send less schema, write better SQL, pay fewer tokens."
+  site-url: "https://shovalbenjer.github.io/sqltok/"
+  favicon: assets/logo.png
+  open-graph: true
+  twitter-card: true
+  navbar:
+    background: "#0d1424"
+    logo: assets/logo.png
+    logo-alt: "SQLTok"
+    pinned: true
+    right:
+      - text: "Home"
+        href: index.qmd
+      - text: "Blog"
+        href: blog.qmd
+      - text: "Docs"
+        href: https://github.com/ShovalBenjer/sqltok#readme
+      - icon: github
+        href: https://github.com/ShovalBenjer/sqltok
+        aria-label: "GitHub"
+  page-footer:
+    background: "#0d1424"
+    center: "MIT licensed. Built on recent Text-to-SQL research."
+
+format:
+  html:
+    theme:
+      - darkly
+      - styles.scss
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    code-overflow: wrap
+    highlight-style: github-dark
+    smooth-scroll: true
+    link-external-newwindow: true

@@ -1,0 +1,64 @@
+/*-- scss:defaults --*/
+
+// Brand palette derived from the SQLTok logo.
+$body-bg:        #0d1424;
+$body-color:     #e8eef7;
+$link-color:     #6fb1ff;
+$navbar-bg:      #0d1424;
+$navbar-fg:      #cfe0f5;
+$code-bg:        #111d34;
+$card-bg:        #16203a;
+
+$primary:        #4a90d9;
+$font-family-sans-serif: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+$h1-font-size:   2.3rem;
+$toc-color:      #9fb0c8;
+
+/*-- scss:rules --*/
+
+body {
+  background: linear-gradient(180deg, #0b1120 0%, #0d1424 100%);
+}
+
+a:hover { color: #9fc6ff; }
+
+.navbar { border-bottom: 1px solid #1e2c48; }
+
+h1, h2, h3 { color: #eaf2ff; letter-spacing: -0.01em; }
+h2 { border-bottom: 1px solid #1e2c48; padding-bottom: .3rem; margin-top: 2.2rem; }
+
+pre, code { background-color: $code-bg !important; border-radius: 8px; }
+pre { border: 1px solid #1e2c48; }
+
+img { border-radius: 10px; }
+
+.quarto-title-block .description { color: #9fb0c8; font-size: 1.05rem; }
+
+// Simple hero block for the landing page.
+.hero {
+  text-align: center;
+  padding: 2.5rem 1rem 1rem;
+}
+.hero img { width: 260px; max-width: 70%; border-radius: 16px; }
+.hero .tagline { color: #9fb0c8; font-size: 1.15rem; margin-top: .5rem; }
+.badge-row { margin: 1rem 0; }
+
+.metric {
+  display: inline-block;
+  background: $card-bg;
+  border: 1px solid #2a3a5c;
+  border-radius: 12px;
+  padding: .8rem 1.2rem;
+  margin: .4rem;
+  min-width: 150px;
+}
+.metric .num { font-size: 1.7rem; font-weight: 700; color: #6fb1ff; }
+.metric .lbl { color: #9fb0c8; font-size: .85rem; }
+
+// Blog listing cards.
+.quarto-listing .listing-item {
+  background: $card-bg;
+  border: 1px solid #1e2c48;
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+}
