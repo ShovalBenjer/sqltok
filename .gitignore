@@ -23,3 +23,7 @@ benchmarks/third_party/bird_eval/*.py
 
 # Allow the results directory placeholder to be tracked
 !benchmarks/results/.gitkeep
+
+# Quarto site build output
+site/_site/
+site/.quarto/

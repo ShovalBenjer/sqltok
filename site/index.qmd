@@ -1,0 +1,91 @@
+---
+pagetitle: "SQLTok: a schema token budget manager for Text-to-SQL"
+description: "Select only the schema that matters, within a hard token budget, with guaranteed-joinable tables."
+toc: false
+---
+
+::: {.hero}
+![](assets/logo.png){fig-alt="SQLTok logo"}
+
+# SQLTok
+
+::: {.tagline}
+A schema token budget manager for Text-to-SQL.
+Send less schema, write better SQL, pay fewer tokens.
+:::
+
+::: {.badge-row}
+[![PyPI](https://img.shields.io/badge/pip%20install-sqltok-blue.svg)](https://pypi.org/project/sqltok/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ShovalBenjer/sqltok/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-sqltok-181717.svg?logo=github)](https://github.com/ShovalBenjer/sqltok)
+:::
+:::
+
+## Measured on BIRD mini-dev
+
+Across all 500 BIRD mini-dev questions over 11 databases, with a 1000-token budget:
+
+::: {layout-ncol=3 .text-center}
+::: {.metric}
+::: {.num}
+57%
+:::
+::: {.lbl}
+fewer schema tokens
+:::
+:::
+
+::: {.metric}
+::: {.num}
+53%
+:::
+::: {.lbl}
+fewer total input tokens
+:::
+:::
+
+::: {.metric}
+::: {.num}
+0
+:::
+::: {.lbl}
+network calls in the core
+:::
+:::
+:::
+
+These figures are deterministic and need no model. Execution accuracy is scored with the official BIRD script.
+
+## What it does
+
+When a language model writes SQL from a question, it needs the schema in the prompt. Sending the whole schema is expensive and lowers accuracy. SQLTok selects only the relevant tables and columns within a configurable token budget, measures the result with `tiktoken`, and guarantees the selected tables are connected by foreign keys so the model can write valid joins.
+
+```python
+from sqltok import SchemaBudgetManager
+
+mgr = SchemaBudgetManager.from_sqlite("northwind.sqlite")
+ctx = mgr.build_context("total order amount for customers in France", token_budget=2000)
+
+print(ctx.text)        # compact CREATE TABLE schema, at most 2000 tokens
+print(ctx.tables)      # ['customers', 'orders']
+print(ctx.token_count) # measured, guaranteed at or below the budget
+```
+
+## How it works
+
+Three working stages and a guarantee. Read the full, illustrated walkthrough in [the visual guide](posts/visual-guide-to-sqltok/index.qmd).
+
+![](assets/diagrams/pipeline.svg){fig-alt="SQLTok pipeline: grounding, coverage, foreign-key Steiner connectivity, and a measured budget"}
+
+1. **Grounding** maps question mentions to tables, columns, and sampled cell values using a native MinHash and LSH index.
+2. **Coverage** selects tables by submodular maximum coverage under the token budget, with a `(1 - 1/e)` guarantee.
+3. **Foreign-key Steiner connectivity** adds the minimal bridge tables so the selection is joinable.
+
+## Install
+
+```bash
+pip install sqltok
+```
+
+[Read the visual guide](posts/visual-guide-to-sqltok/index.qmd){.btn .btn-primary} &nbsp;
+[View on GitHub](https://github.com/ShovalBenjer/sqltok){.btn .btn-outline-light}

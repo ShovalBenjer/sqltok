@@ -1,0 +1,11 @@
+---
+title: "Blog"
+description: "Notes on token-efficient Text-to-SQL, schema linking, and retrieval."
+listing:
+  contents: posts
+  sort: "date desc"
+  type: default
+  categories: true
+  fields: [date, title, description, reading-time]
+  feed: true
+---
