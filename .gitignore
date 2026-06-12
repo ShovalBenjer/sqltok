@@ -27,3 +27,9 @@ benchmarks/third_party/bird_eval/*.py
 # Quarto site build output
 site/_site/
 site/.quarto/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
