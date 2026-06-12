@@ -39,3 +39,22 @@ python benchmarks/run_bird.py --provider anthropic --model claude-3-5-sonnet \
 ```
 
 A 20-question `--limit 20` pass costs cents and is enough for a smoke check.
+
+## Schema-linking recall vs BIRD gold SQL (measured, no API key)
+
+For each of the 500 questions, the gold SQL is parsed for the tables it
+references, and we check whether SQLTok kept them. Full-recall rate (all gold
+tables present) is the ceiling on achievable execution accuracy: if a needed
+table is dropped, no model can answer correctly.
+
+| budget | table recall | full-recall rate | precision | avg tables |
+| ---: | ---: | ---: | ---: | ---: |
+| 1000 | 88.9% | 76.2% | 62.0% | 3.27 |
+| 2000 | 90.8% | 80.2% | 62.2% | 3.33 |
+| 4000 | 91.0% | 80.6% | 61.0% | 3.43 |
+
+Sample-value null rate: 17.4% of columns had no sampled values (empty tables,
+all-null columns, or values absent from the first sampled rows), so value
+grounding has no signal for roughly one column in six.
+
+Reproduce: `python benchmarks/eval_recall.py --questions benchmarks/data/minidev/MINIDEV/mini_dev_sqlite.json --db-root benchmarks/data/minidev/MINIDEV/dev_databases`
