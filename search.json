@@ -1,0 +1,107 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "SQLTok",
+    "section": "",
+    "text": "A schema token budget manager for Text-to-SQL. Send less schema, write better SQL, pay fewer tokens."
+  },
+  {
+    "objectID": "index.html#measured-on-bird-mini-dev",
+    "href": "index.html#measured-on-bird-mini-dev",
+    "title": "SQLTok",
+    "section": "Measured on BIRD mini-dev",
+    "text": "Measured on BIRD mini-dev\nAcross all 500 BIRD mini-dev questions over 11 databases, at a 2000-token budget:\n\n\n\n\n97%\n\n\nfull table recall (all gold tables kept)\n\n\n\n\n17%\n\n\nfewer total input tokens\n\n\n\n\n0\n\n\nnetwork calls in the core\n\n\n\n\nThese figures are deterministic and need no model. Execution accuracy is scored with the official BIRD script."
+  },
+  {
+    "objectID": "index.html#what-it-does",
+    "href": "index.html#what-it-does",
+    "title": "SQLTok",
+    "section": "What it does",
+    "text": "What it does\nWhen a language model writes SQL from a question, it needs the schema in the prompt. Sending the whole schema is expensive and lowers accuracy. SQLTok selects only the relevant tables and columns within a configurable token budget, measures the result with tiktoken, and guarantees the selected tables are connected by foreign keys so the model can write valid joins.\nfrom sqltok import SchemaBudgetManager\n\nmgr = SchemaBudgetManager.from_sqlite(\"northwind.sqlite\")\nctx = mgr.build_context(\"total order amount for customers in France\", token_budget=2000)\n\nprint(ctx.text)        # compact CREATE TABLE schema, at most 2000 tokens\nprint(ctx.tables)      # ['customers', 'orders']\nprint(ctx.token_count) # measured, guaranteed at or below the budget"
+  },
+  {
+    "objectID": "index.html#how-it-works",
+    "href": "index.html#how-it-works",
+    "title": "SQLTok",
+    "section": "How it works",
+    "text": "How it works\nThree working stages and a guarantee. Read the full, illustrated walkthrough in the visual guide.\n\n\nGrounding maps question mentions to tables, columns, and sampled cell values using a native MinHash and LSH index.\nCoverage selects tables by submodular maximum coverage under the token budget, with a (1 - 1/e) guarantee.\nForeign-key Steiner connectivity adds the minimal bridge tables so the selection is joinable."
+  },
+  {
+    "objectID": "index.html#install",
+    "href": "index.html#install",
+    "title": "SQLTok",
+    "section": "Install",
+    "text": "Install\npip install sqltok\nRead the visual guide   View on GitHub"
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html",
+    "href": "posts/visual-guide-to-sqltok/index.html",
+    "title": "A Visual Guide to SQLTok",
+    "section": "",
+    "text": "When a language model writes SQL from a question, it needs to see the database schema. The simplest thing to do is paste the whole schema into the prompt. On a real warehouse that is also the most expensive thing to do, and it lowers accuracy, because the model has to find a few relevant tables inside thousands.\nThis post is a visual, step by step guide to how SQLTok solves that. It selects only the relevant tables and columns, keeps the result inside a token budget, and guarantees that the selected tables can actually be joined. Each idea is grounded in recent Text-to-SQL research, and everything is implemented natively in Python and NumPy. We build intuition first and add the math after.\nMeasured up front: across all 500 BIRD mini-dev questions, at a 2000-token budget SQLTok keeps every table the gold query needs on 97 percent of questions while cutting total prompt input by 17 percent. At a 1000-token budget it cuts total input by 36 percent at 92 percent full table recall. The numbers are deterministic and need no model."
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#the-whole-idea-in-one-picture",
+    "href": "posts/visual-guide-to-sqltok/index.html#the-whole-idea-in-one-picture",
+    "title": "A Visual Guide to SQLTok",
+    "section": "The whole idea in one picture",
+    "text": "The whole idea in one picture\nSQLTok is a pipeline with three working stages and a guarantee.\n\nThe inputs are a question, a schema, and a token budget. Stage one decides which words in the question touch which tables. Stage two selects a set of tables that covers the most of the question per token, under the budget. Stage three repairs the selection so the tables can be joined. The output is a compact schema string whose token count is measured, not estimated, so it never exceeds the budget."
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#stage-one-grounding-or-which-words-touch-which-tables",
+    "href": "posts/visual-guide-to-sqltok/index.html#stage-one-grounding-or-which-words-touch-which-tables",
+    "title": "A Visual Guide to SQLTok",
+    "section": "Stage one: grounding, or which words touch which tables",
+    "text": "Stage one: grounding, or which words touch which tables\nStart with the failure mode of plain keyword search. Consider the question “total orders for customers in France.” The word that matters most, “France,” is not a table name and not a column name. It is a value sitting inside customers.country. Keyword search over schema names cannot see it.\nSQLTok grounds mentions against the schema names and against sampled cell values.\n\nRead the figure left to right. The mention “France” becomes a set of three-character pieces, called shingles: {fra, ran, anc, nce}. Shingles give fuzzy matching, so plurals, casing, and small typos still line up. Each shingle set is compressed into a short numeric signature with MinHash, and the signature is looked up in a banded LSH index that holds every table name, column name, and sampled value. “France” collides with the sampled values of customers.country, so it grounds to customers, even though no name mentions it.\n\nThe math behind grounding\nJaccard similarity measures the overlap of two sets:\n\\[\n\\mathrm{Jaccard}(A, B) = \\frac{\\lvert A \\cap B \\rvert}{\\lvert A \\cup B \\rvert}.\n\\]\nMinHash estimates that overlap cheaply. For a random hash permutation \\(h\\), the probability that two sets share the same minimum equals their Jaccard similarity:\n\\[\n\\Pr\\!\\left[\\min_{a \\in A} h(a) = \\min_{b \\in B} h(b)\\right] = \\mathrm{Jaccard}(A, B).\n\\]\nWith \\(k = 64\\) independent permutations, the fraction of matching signature positions is an unbiased estimate of Jaccard, computed by comparing 64 integers instead of two raw sets.\nLSH turns that estimate into fast lookup. The signature is split into \\(b\\) bands of \\(r\\) rows. Two items become candidates if they match on at least one full band, so the probability that two items of similarity \\(s\\) collide is\n\\[\n\\Pr[\\text{collide}] = 1 - \\left(1 - s^{\\,r}\\right)^{b},\n\\]\nan S-shaped curve with a soft threshold near \\((1/b)^{1/r}\\). SQLTok uses \\(b = 32\\) bands of \\(r = 2\\) rows, a threshold near \\(0.18\\), which favors recall.\nEach grounded mention gets a weight from an inverse document frequency computed on the schema itself:\n\\[\nw(m) = \\log\\!\\left(1 + \\frac{\\lvert T \\rvert}{\\mathrm{df}(m)}\\right),\n\\]\nwhere \\(\\mathrm{df}(m)\\) is the number of tables the mention touches. A mention that hits every table, like id, gets near zero weight. A mention that hits a single table is highly discriminative. The signal comes from your database, not a generic corpus.\nThe output of stage one is a matrix \\(\\mathrm{cover}[T, m] \\in [0,1]\\) and a weight per mention."
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#stage-two-coverage-or-pick-the-best-tables-per-token",
+    "href": "posts/visual-guide-to-sqltok/index.html#stage-two-coverage-or-pick-the-best-tables-per-token",
+    "title": "A Visual Guide to SQLTok",
+    "section": "Stage two: coverage, or pick the best tables per token",
+    "text": "Stage two: coverage, or pick the best tables per token\nNow we choose tables. The objective is weighted maximum coverage: each mention scores through the single best table that covers it.\n\nThe figure shows why this is the right shape. Once “amount” is covered by orders, a second table that also covers “amount,” such as orders_archive, adds nothing. Its marginal gain is zero, so it is skipped. Redundancy is removed automatically, not by a special rule.\n\nThe math behind coverage\nThe objective is\n\\[\nf(S) = \\sum_{m \\in M} w(m)\\, \\max_{T \\in S}\\, \\mathrm{cover}(m, T).\n\\]\nThis function is monotone, adding a table never lowers it, and submodular, the gain of a table shrinks as the selection grows. For monotone submodular functions a greedy maximizer reaches at least a \\((1 - 1/e) \\approx 0.63\\) fraction of the optimum:\n\\[\nf(S_{\\text{greedy}}) \\ge \\left(1 - \\tfrac{1}{e}\\right) f(S^{\\*}).\n\\]\nThat is a guarantee, not a hope.\nTables have different token costs, so selection is a knapsack. SQLTok picks the table with the largest ratio of marginal gain to token cost,\n\\[\nT^{\\*} = \\arg\\max_{T \\notin S}\\; \\frac{f(S \\cup \\{T\\}) - f(S)}{c(T)},\n\\]\ncommits it only if the re-measured context still fits the budget, and uses CELF lazy evaluation to avoid recomputing every candidate at every step. Because gains only shrink, a candidate at the top of the queue with a current timestamp is provably the best next pick. SQLTok also compares against the best single table that fits, which restores the constant-factor guarantee for the budgeted case."
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#stage-three-foreign-key-steiner-connectivity",
+    "href": "posts/visual-guide-to-sqltok/index.html#stage-three-foreign-key-steiner-connectivity",
+    "title": "A Visual Guide to SQLTok",
+    "section": "Stage three: foreign-key Steiner connectivity",
+    "text": "Stage three: foreign-key Steiner connectivity\nA set chosen purely for relevance can contain two tables with no join between them. The model then invents a join and produces wrong SQL.\n\nSQLTok builds the foreign-key graph, checks whether the selected tables are connected, and if not adds the smallest set of bridge tables along the shortest foreign-key path, as long as they fit the budget. On the left, products and orders are both relevant but unlinked. On the right, line_items is added as a bridge, and now the schema is joinable. This follows the observation that foreign keys are the natural bridges between relevant tables."
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#stage-four-the-budget-is-a-hard-ceiling",
+    "href": "posts/visual-guide-to-sqltok/index.html#stage-four-the-budget-is-a-hard-ceiling",
+    "title": "A Visual Guide to SQLTok",
+    "section": "Stage four: the budget is a hard ceiling",
+    "text": "Stage four: the budget is a hard ceiling\nEvery time a table is considered, SQLTok renders the full context and counts it with the real tokenizer, committing the table only if the total stays within budget, and dropping the sample row before dropping the table. Because the actual string is measured at each step, the final token count at or below the budget is an invariant that no selection logic can break."
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#does-it-work",
+    "href": "posts/visual-guide-to-sqltok/index.html#does-it-work",
+    "title": "A Visual Guide to SQLTok",
+    "section": "Does it work",
+    "text": "Does it work\nOn all 500 BIRD mini-dev questions across 11 databases, measured with tiktoken. Full-recall is the rate at which every gold-query table survives selection, the ceiling on achievable accuracy.\n\n\n\n\n\n\n\n\n\n\nbudget\nfull-recall\ntable recall\ntotal input tokens\ntotal input reduction\n\n\n\n\nbaseline\n100%\n100%\n629,819\nreference\n\n\n1000\n91.8%\n96.3%\n401,285\n36.3%\n\n\n2000\n97.4%\n99.0%\n521,760\n17.2%\n\n\n4000\n97.4%\n99.0%\n581,559\n7.7%\n\n\n\nThese token figures are deterministic. The remaining question, whether accuracy holds at the lower token count, is answered by running the official BIRD execution-accuracy script with a real model, which the repository supports directly."
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#try-it",
+    "href": "posts/visual-guide-to-sqltok/index.html#try-it",
+    "title": "A Visual Guide to SQLTok",
+    "section": "Try it",
+    "text": "Try it\npip install sqltok\nfrom sqltok import SchemaBudgetManager\n\nmgr = SchemaBudgetManager.from_sqlite(\"db.sqlite\")\nctx = mgr.build_context(\"total orders for customers in France\", token_budget=2000)\nprint(ctx.text, ctx.tables, ctx.token_count)"
+  },
+  {
+    "objectID": "posts/visual-guide-to-sqltok/index.html#references",
+    "href": "posts/visual-guide-to-sqltok/index.html#references",
+    "title": "A Visual Guide to SQLTok",
+    "section": "References",
+    "text": "References\n\nDatalake Agent, Agentic NL2SQL to Reduce Computational Costs. arXiv:2510.14808.\nBidirectional Schema Linking, Findings of EACL 2026. arXiv:2510.14296.\nAutoLink, Autonomous Schema Exploration and Expansion at Scale. arXiv:2511.17190.\nAdaGReS, Adaptive Greedy Context Selection for Token-Budgeted RAG. arXiv:2512.25052.\nSub-SA, Submodular Selective Annotation. arXiv:2407.05693.\nCHESS, Contextual Harnessing for Efficient SQL Synthesis. arXiv:2405.16755.\nNemhauser, Wolsey, and Fisher, the \\((1 - 1/e)\\) bound for submodular maximization, 1978. Broder, MinHash, 1997. Indyk and Motwani, LSH, 1998. Leskovec et al., CELF, 2007."
+  },
+  {
+    "objectID": "blog.html",
+    "href": "blog.html",
+    "title": "Blog",
+    "section": "",
+    "text": "A Visual Guide to SQLTok\n\n\nHow SQLTok selects only the schema that matters, within a token budget, with guaranteed-joinable tables. Intuition first, then the math.\n\n\n\n\n\nJun 10, 2026\n\n7 min\n\n\n\n\nNo matching items"
+  }
+]

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss  xmlns:atom="http://www.w3.org/2005/Atom" 
+      xmlns:media="http://search.yahoo.com/mrss/" 
+      xmlns:content="http://purl.org/rss/1.0/modules/content/" 
+      xmlns:dc="http://purl.org/dc/elements/1.1/" 
+      version="2.0">
+<channel>
+<title>SQLTok</title>
+<link>https://shovalbenjer.github.io/sqltok/blog.html</link>
+<atom:link href="https://shovalbenjer.github.io/sqltok/blog.xml" rel="self" type="application/rss+xml"/>
+<description>Notes on token-efficient Text-to-SQL, schema linking, and retrieval.</description>
+<generator>quarto-1.9.38</generator>
+<lastBuildDate>Wed, 10 Jun 2026 00:00:00 GMT</lastBuildDate>
+<item>
+  <title>A Visual Guide to SQLTok</title>
+  <dc:creator>Shoval Benjer</dc:creator>
+  <link>https://shovalbenjer.github.io/sqltok/posts/visual-guide-to-sqltok/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<p>When a language model writes SQL from a question, it needs to see the database schema. The simplest thing to do is paste the whole schema into the prompt. On a real warehouse that is also the most expensive thing to do, and it lowers accuracy, because the model has to find a few relevant tables inside thousands.</p>
+<p>This post is a visual, step by step guide to how SQLTok solves that. It selects only the relevant tables and columns, keeps the result inside a token budget, and guarantees that the selected tables can actually be joined. Each idea is grounded in recent Text-to-SQL research, and everything is implemented natively in Python and NumPy. We build intuition first and add the math after.</p>
+<p>Measured up front: across all 500 BIRD mini-dev questions, at a 2000-token budget SQLTok keeps every table the gold query needs on 97 percent of questions while cutting total prompt input by 17 percent. At a 1000-token budget it cuts total input by 36 percent at 92 percent full table recall. The numbers are deterministic and need no model.</p>
+<section id="the-whole-idea-in-one-picture" class="level2">
+<h2 class="anchored" data-anchor-id="the-whole-idea-in-one-picture">The whole idea in one picture</h2>
+<p>SQLTok is a pipeline with three working stages and a guarantee.</p>
+<p><img src="https://shovalbenjer.github.io/sqltok/assets/diagrams/pipeline.svg" class="img-fluid" alt="SQLTok pipeline"></p>
+<p>The inputs are a question, a schema, and a token budget. Stage one decides which words in the question touch which tables. Stage two selects a set of tables that covers the most of the question per token, under the budget. Stage three repairs the selection so the tables can be joined. The output is a compact schema string whose token count is measured, not estimated, so it never exceeds the budget.</p>
+</section>
+<section id="stage-one-grounding-or-which-words-touch-which-tables" class="level2">
+<h2 class="anchored" data-anchor-id="stage-one-grounding-or-which-words-touch-which-tables">Stage one: grounding, or which words touch which tables</h2>
+<p>Start with the failure mode of plain keyword search. Consider the question “total orders for customers in France.” The word that matters most, “France,” is not a table name and not a column name. It is a value sitting inside <code>customers.country</code>. Keyword search over schema names cannot see it.</p>
+<p>SQLTok grounds mentions against the schema names and against sampled cell values.</p>
+<p><img src="https://shovalbenjer.github.io/sqltok/assets/diagrams/grounding.svg" class="img-fluid" alt="Value grounding with MinHash and LSH"></p>
+<p>Read the figure left to right. The mention “France” becomes a set of three-character pieces, called shingles: <code>{fra, ran, anc, nce}</code>. Shingles give fuzzy matching, so plurals, casing, and small typos still line up. Each shingle set is compressed into a short numeric signature with MinHash, and the signature is looked up in a banded LSH index that holds every table name, column name, and sampled value. “France” collides with the sampled values of <code>customers.country</code>, so it grounds to <code>customers</code>, even though no name mentions it.</p>
+<section id="the-math-behind-grounding" class="level3">
+<h3 class="anchored" data-anchor-id="the-math-behind-grounding">The math behind grounding</h3>
+<p>Jaccard similarity measures the overlap of two sets:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cmathrm%7BJaccard%7D(A,%20B)%20=%20%5Cfrac%7B%5Clvert%20A%20%5Ccap%20B%20%5Crvert%7D%7B%5Clvert%20A%20%5Ccup%20B%20%5Crvert%7D.%0A"></p>
+<p>MinHash estimates that overlap cheaply. For a random hash permutation <img src="https://latex.codecogs.com/png.latex?h">, the probability that two sets share the same minimum equals their Jaccard similarity:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5CPr%5C!%5Cleft%5B%5Cmin_%7Ba%20%5Cin%20A%7D%20h(a)%20=%20%5Cmin_%7Bb%20%5Cin%20B%7D%20h(b)%5Cright%5D%20=%20%5Cmathrm%7BJaccard%7D(A,%20B).%0A"></p>
+<p>With <img src="https://latex.codecogs.com/png.latex?k%20=%2064"> independent permutations, the fraction of matching signature positions is an unbiased estimate of Jaccard, computed by comparing 64 integers instead of two raw sets.</p>
+<p>LSH turns that estimate into fast lookup. The signature is split into <img src="https://latex.codecogs.com/png.latex?b"> bands of <img src="https://latex.codecogs.com/png.latex?r"> rows. Two items become candidates if they match on at least one full band, so the probability that two items of similarity <img src="https://latex.codecogs.com/png.latex?s"> collide is</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5CPr%5B%5Ctext%7Bcollide%7D%5D%20=%201%20-%20%5Cleft(1%20-%20s%5E%7B%5C,r%7D%5Cright)%5E%7Bb%7D,%0A"></p>
+<p>an S-shaped curve with a soft threshold near <img src="https://latex.codecogs.com/png.latex?(1/b)%5E%7B1/r%7D">. SQLTok uses <img src="https://latex.codecogs.com/png.latex?b%20=%2032"> bands of <img src="https://latex.codecogs.com/png.latex?r%20=%202"> rows, a threshold near <img src="https://latex.codecogs.com/png.latex?0.18">, which favors recall.</p>
+<p>Each grounded mention gets a weight from an inverse document frequency computed on the schema itself:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0Aw(m)%20=%20%5Clog%5C!%5Cleft(1%20+%20%5Cfrac%7B%5Clvert%20T%20%5Crvert%7D%7B%5Cmathrm%7Bdf%7D(m)%7D%5Cright),%0A"></p>
+<p>where <img src="https://latex.codecogs.com/png.latex?%5Cmathrm%7Bdf%7D(m)"> is the number of tables the mention touches. A mention that hits every table, like <code>id</code>, gets near zero weight. A mention that hits a single table is highly discriminative. The signal comes from your database, not a generic corpus.</p>
+<p>The output of stage one is a matrix <img src="https://latex.codecogs.com/png.latex?%5Cmathrm%7Bcover%7D%5BT,%20m%5D%20%5Cin%20%5B0,1%5D"> and a weight per mention.</p>
+</section>
+</section>
+<section id="stage-two-coverage-or-pick-the-best-tables-per-token" class="level2">
+<h2 class="anchored" data-anchor-id="stage-two-coverage-or-pick-the-best-tables-per-token">Stage two: coverage, or pick the best tables per token</h2>
+<p>Now we choose tables. The objective is weighted maximum coverage: each mention scores through the single best table that covers it.</p>
+<p><img src="https://shovalbenjer.github.io/sqltok/assets/diagrams/coverage.svg" class="img-fluid" alt="Submodular coverage selection"></p>
+<p>The figure shows why this is the right shape. Once “amount” is covered by <code>orders</code>, a second table that also covers “amount,” such as <code>orders_archive</code>, adds nothing. Its marginal gain is zero, so it is skipped. Redundancy is removed automatically, not by a special rule.</p>
+<section id="the-math-behind-coverage" class="level3">
+<h3 class="anchored" data-anchor-id="the-math-behind-coverage">The math behind coverage</h3>
+<p>The objective is</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0Af(S)%20=%20%5Csum_%7Bm%20%5Cin%20M%7D%20w(m)%5C,%20%5Cmax_%7BT%20%5Cin%20S%7D%5C,%20%5Cmathrm%7Bcover%7D(m,%20T).%0A"></p>
+<p>This function is monotone, adding a table never lowers it, and submodular, the gain of a table shrinks as the selection grows. For monotone submodular functions a greedy maximizer reaches at least a <img src="https://latex.codecogs.com/png.latex?(1%20-%201/e)%20%5Capprox%200.63"> fraction of the optimum:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0Af(S_%7B%5Ctext%7Bgreedy%7D%7D)%20%5Cge%20%5Cleft(1%20-%20%5Ctfrac%7B1%7D%7Be%7D%5Cright)%20f(S%5E%7B%5C*%7D).%0A"></p>
+<p>That is a guarantee, not a hope.</p>
+<p>Tables have different token costs, so selection is a knapsack. SQLTok picks the table with the largest ratio of marginal gain to token cost,</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AT%5E%7B%5C*%7D%20=%20%5Carg%5Cmax_%7BT%20%5Cnotin%20S%7D%5C;%20%5Cfrac%7Bf(S%20%5Ccup%20%5C%7BT%5C%7D)%20-%20f(S)%7D%7Bc(T)%7D,%0A"></p>
+<p>commits it only if the re-measured context still fits the budget, and uses CELF lazy evaluation to avoid recomputing every candidate at every step. Because gains only shrink, a candidate at the top of the queue with a current timestamp is provably the best next pick. SQLTok also compares against the best single table that fits, which restores the constant-factor guarantee for the budgeted case.</p>
+</section>
+</section>
+<section id="stage-three-foreign-key-steiner-connectivity" class="level2">
+<h2 class="anchored" data-anchor-id="stage-three-foreign-key-steiner-connectivity">Stage three: foreign-key Steiner connectivity</h2>
+<p>A set chosen purely for relevance can contain two tables with no join between them. The model then invents a join and produces wrong SQL.</p>
+<p><img src="https://shovalbenjer.github.io/sqltok/assets/diagrams/fk_steiner.svg" class="img-fluid" alt="Foreign-key Steiner bridge"></p>
+<p>SQLTok builds the foreign-key graph, checks whether the selected tables are connected, and if not adds the smallest set of bridge tables along the shortest foreign-key path, as long as they fit the budget. On the left, <code>products</code> and <code>orders</code> are both relevant but unlinked. On the right, <code>line_items</code> is added as a bridge, and now the schema is joinable. This follows the observation that foreign keys are the natural bridges between relevant tables.</p>
+</section>
+<section id="stage-four-the-budget-is-a-hard-ceiling" class="level2">
+<h2 class="anchored" data-anchor-id="stage-four-the-budget-is-a-hard-ceiling">Stage four: the budget is a hard ceiling</h2>
+<p>Every time a table is considered, SQLTok renders the full context and counts it with the real tokenizer, committing the table only if the total stays within budget, and dropping the sample row before dropping the table. Because the actual string is measured at each step, the final token count at or below the budget is an invariant that no selection logic can break.</p>
+</section>
+<section id="does-it-work" class="level2">
+<h2 class="anchored" data-anchor-id="does-it-work">Does it work</h2>
+<p>On all 500 BIRD mini-dev questions across 11 databases, measured with <code>tiktoken</code>. Full-recall is the rate at which every gold-query table survives selection, the ceiling on achievable accuracy.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: right;">budget</th>
+<th style="text-align: right;">full-recall</th>
+<th style="text-align: right;">table recall</th>
+<th style="text-align: right;">total input tokens</th>
+<th style="text-align: right;">total input reduction</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">baseline</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">629,819</td>
+<td style="text-align: right;">reference</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">1000</td>
+<td style="text-align: right;">91.8%</td>
+<td style="text-align: right;">96.3%</td>
+<td style="text-align: right;">401,285</td>
+<td style="text-align: right;">36.3%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2000</td>
+<td style="text-align: right;">97.4%</td>
+<td style="text-align: right;">99.0%</td>
+<td style="text-align: right;">521,760</td>
+<td style="text-align: right;">17.2%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">4000</td>
+<td style="text-align: right;">97.4%</td>
+<td style="text-align: right;">99.0%</td>
+<td style="text-align: right;">581,559</td>
+<td style="text-align: right;">7.7%</td>
+</tr>
+</tbody>
+</table>
+<p>These token figures are deterministic. The remaining question, whether accuracy holds at the lower token count, is answered by running the official BIRD execution-accuracy script with a real model, which the repository supports directly.</p>
+</section>
+<section id="try-it" class="level2">
+<h2 class="anchored" data-anchor-id="try-it">Try it</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">pip</span> install sqltok</span></code></pre></div></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> sqltok <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> SchemaBudgetManager</span>
+<span id="cb2-2"></span>
+<span id="cb2-3">mgr <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> SchemaBudgetManager.from_sqlite(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"db.sqlite"</span>)</span>
+<span id="cb2-4">ctx <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> mgr.build_context(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"total orders for customers in France"</span>, token_budget<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2000</span>)</span>
+<span id="cb2-5"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(ctx.text, ctx.tables, ctx.token_count)</span></code></pre></div></div>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ol type="1">
+<li>Datalake Agent, Agentic NL2SQL to Reduce Computational Costs. <a href="https://arxiv.org/abs/2510.14808">arXiv:2510.14808</a>.</li>
+<li>Bidirectional Schema Linking, Findings of EACL 2026. <a href="https://arxiv.org/abs/2510.14296">arXiv:2510.14296</a>.</li>
+<li>AutoLink, Autonomous Schema Exploration and Expansion at Scale. <a href="https://arxiv.org/abs/2511.17190">arXiv:2511.17190</a>.</li>
+<li>AdaGReS, Adaptive Greedy Context Selection for Token-Budgeted RAG. <a href="https://arxiv.org/abs/2512.25052">arXiv:2512.25052</a>.</li>
+<li>Sub-SA, Submodular Selective Annotation. <a href="https://arxiv.org/abs/2407.05693">arXiv:2407.05693</a>.</li>
+<li>CHESS, Contextual Harnessing for Efficient SQL Synthesis. <a href="https://arxiv.org/abs/2405.16755">arXiv:2405.16755</a>.</li>
+<li>Nemhauser, Wolsey, and Fisher, the <img src="https://latex.codecogs.com/png.latex?(1%20-%201/e)"> bound for submodular maximization, 1978. Broder, MinHash, 1997. Indyk and Motwani, LSH, 1998. Leskovec et al., CELF, 2007.</li>
+</ol>
+
+
+</section>
+
+ ]]></description>
+  <category>text-to-sql</category>
+  <category>llm</category>
+  <category>retrieval</category>
+  <category>schema-linking</category>
+  <guid>https://shovalbenjer.github.io/sqltok/posts/visual-guide-to-sqltok/</guid>
+  <pubDate>Wed, 10 Jun 2026 00:00:00 GMT</pubDate>
+  <media:content url="https://shovalbenjer.github.io/sqltok/assets/diagrams/pipeline.svg" medium="image" type="image/svg+xml"/>
+</item>
+</channel>
+</rss>
