@@ -1,2 +1,2 @@
-SQLTok picks only the schema your Text-to-SQL LLM needs, within a token budget. On BIRD mini-dev it cut schema tokens by 57 percent at a 1000-token budget. Python, no network calls. pip install sqltok
+SQLTok picks only the schema your Text-to-SQL LLM needs, within a token budget. On BIRD mini-dev it keeps every table a query needs on 97 percent of questions while shrinking the prompt. Python, no network calls. pip install sqltok
 https://github.com/ShovalBenjer/sqltok

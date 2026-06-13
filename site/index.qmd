@@ -23,21 +23,21 @@ Send less schema, write better SQL, pay fewer tokens.
 
 ## Measured on BIRD mini-dev
 
-Across all 500 BIRD mini-dev questions over 11 databases, with a 1000-token budget:
+Across all 500 BIRD mini-dev questions over 11 databases, at a 2000-token budget:
 
 ::: {layout-ncol=3 .text-center}
 ::: {.metric}
 ::: {.num}
-57%
+97%
 :::
 ::: {.lbl}
-fewer schema tokens
+full table recall (all gold tables kept)
 :::
 :::
 
 ::: {.metric}
 ::: {.num}
-53%
+17%
 :::
 ::: {.lbl}
 fewer total input tokens

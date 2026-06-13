@@ -11,7 +11,7 @@ When a language model writes SQL from a question, it needs to see the database s
 
 This post is a visual, step by step guide to how SQLTok solves that. It selects only the relevant tables and columns, keeps the result inside a token budget, and guarantees that the selected tables can actually be joined. Each idea is grounded in recent Text-to-SQL research, and everything is implemented natively in Python and NumPy. We build intuition first and add the math after.
 
-Measured up front: across all 500 BIRD mini-dev questions, at a 1000-token budget SQLTok cuts schema-context tokens by 57 percent and total prompt input by 53 percent. The number is deterministic and needs no model.
+Measured up front: across all 500 BIRD mini-dev questions, at a 2000-token budget SQLTok keeps every table the gold query needs on 97 percent of questions while cutting total prompt input by 17 percent. At a 1000-token budget it cuts total input by 36 percent at 92 percent full table recall. The numbers are deterministic and need no model.
 
 ## The whole idea in one picture
 
@@ -111,14 +111,14 @@ Every time a table is considered, SQLTok renders the full context and counts it 
 
 ## Does it work
 
-On all 500 BIRD mini-dev questions across 11 databases, measured with `tiktoken`:
+On all 500 BIRD mini-dev questions across 11 databases, measured with `tiktoken`. Full-recall is the rate at which every gold-query table survives selection, the ceiling on achievable accuracy.
 
-| arm | schema tokens (mean) | total input tokens | reduction vs baseline |
-| --- | ---: | ---: | ---: |
-| baseline (full dump) | 1161 | 629,819 | reference |
-| sqltok at 1000 | 497 | 298,234 | 57% schema, 53% total |
-| sqltok at 2000 | 648 | 373,675 | 44% schema, 41% total |
-| sqltok at 4000 | 752 | 425,687 | 35% schema, 32% total |
+| budget | full-recall | table recall | total input tokens | total input reduction |
+| ---: | ---: | ---: | ---: | ---: |
+| baseline | 100% | 100% | 629,819 | reference |
+| 1000 | 91.8% | 96.3% | 401,285 | 36.3% |
+| 2000 | 97.4% | 99.0% | 521,760 | 17.2% |
+| 4000 | 97.4% | 99.0% | 581,559 | 7.7% |
 
 These token figures are deterministic. The remaining question, whether accuracy holds at the lower token count, is answered by running the official BIRD execution-accuracy script with a real model, which the repository supports directly.
 

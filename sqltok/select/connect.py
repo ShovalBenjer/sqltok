@@ -10,10 +10,37 @@ the remaining token budget.
 
 from __future__ import annotations
 
-from collections import deque
+from collections import Counter, deque
 
 from ..models import Schema
 from .base import BudgetPacker
+
+
+def expand_fk_neighbors(
+    packer: BudgetPacker, seeds: list[str], *, min_links: int = 1
+) -> list[str]:
+    """Spend remaining budget on foreign-key neighbours of the seed tables.
+
+    Gold queries almost always join a relevant table to one of its foreign-key
+    neighbours, yet coverage selection stops once question mentions are covered,
+    often leaving budget unused. This pulls in the one-hop FK neighbours of the
+    seeds, prioritising tables connected to several seeds (junction tables) so
+    join targets are added first. Budget-gated via :meth:`BudgetPacker.try_add`.
+
+    Returns the list of neighbour tables added.
+    """
+    counts: Counter[str] = Counter()
+    for seed in seeds:
+        for neighbor in packer.schema.fk_neighbors(seed):
+            if not packer.contains(neighbor):
+                counts[neighbor] += 1
+    added: list[str] = []
+    for neighbor, links in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        if links < min_links:
+            continue
+        if packer.try_add(neighbor):
+            added.append(neighbor)
+    return added
 
 
 def _adjacency(schema: Schema) -> dict[str, set[str]]:

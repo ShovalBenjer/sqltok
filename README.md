@@ -50,7 +50,7 @@ print(ctx.tables)        # ['customers', 'orders']
 print(ctx.token_count)   # measured, guaranteed at or below the budget
 ```
 
-Measured result: across all 500 BIRD mini-dev questions, at a 1000-token budget SQLTok reduces schema-context tokens by 57 percent and total prompt input by 53 percent, deterministically and with no model required. See [Benchmark](#benchmark).
+Measured result: across all 500 BIRD mini-dev questions, at a 2000-token budget SQLTok keeps every gold-query table on 97 percent of questions while cutting total prompt input by 17 percent, deterministically and with no model required. At a tighter 1000-token budget it cuts total input by 36 percent at 92 percent full table recall. See [Benchmark](#benchmark).
 
 This release (v0.1) provides the schema token budget manager and a BIRD benchmark harness. The semantic cache, intent canonicalizer, and framework integrations are described in the [roadmap](#roadmap) and are not part of this release.
 
@@ -192,16 +192,26 @@ sqltok/
 
 The harness in [`benchmarks/`](benchmarks/) runs two arms with the same model and the same prompt template, differing only in the schema context: a baseline that sends the full schema dump, and SQLTok at budgets of 1000, 2000, and 4000 tokens. Execution accuracy is scored by the official BIRD script rather than a custom checker.
 
-The table below reports the token results across all 500 BIRD mini-dev questions over 11 databases, measured with `tiktoken` (`cl100k_base`). These numbers are deterministic and require no model. The baseline is the full schema dump with one sample row per table.
+The tables below cover all 500 BIRD mini-dev questions over 11 databases, measured with `tiktoken` (`cl100k_base`). Both are deterministic and require no model. The baseline is the full schema dump with one sample row per table.
 
-| arm | schema tokens (mean) | schema tokens (p95) | total input tokens | token reduction vs baseline | execution accuracy |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| baseline (full dump) | 1161 | 2961 | 629,819 | reference | keyed run pending |
-| sqltok at 1000 | 497 | 876 | 298,234 | 57% schema, 53% total | keyed run pending |
-| sqltok at 2000 | 648 | 1617 | 373,675 | 44% schema, 41% total | keyed run pending |
-| sqltok at 4000 | 752 | 2467 | 425,687 | 35% schema, 32% total | keyed run pending |
+Schema-linking recall (does SQLTok keep the tables the gold query needs). Full-recall is the rate at which every gold table is present, which is the ceiling on achievable execution accuracy.
 
-At a 1000-token budget SQLTok cuts schema context by 57 percent and total prompt input by 53 percent across the suite. Execution accuracy is filled in from a keyed run with the official BIRD script. For reference, the budget-aware schema-reduction approach this builds on has reported up to about 87 percent schema-token reduction at competitive accuracy (Datalake Agent, reference 1). See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) for the full run details.
+| budget | table recall | full-recall rate | precision | avg tables |
+| ---: | ---: | ---: | ---: | ---: |
+| 1000 | 96.3% | 91.8% | 42.8% | 5.45 |
+| 2000 | 99.0% | 97.4% | 40.7% | 6.11 |
+| 4000 | 99.0% | 97.4% | 39.8% | 6.24 |
+
+Token reduction vs the full-dump baseline.
+
+| arm | schema tokens (mean) | total input tokens | total input reduction | execution accuracy |
+| --- | ---: | ---: | ---: | ---: |
+| baseline (full dump) | 1161 | 629,819 | reference | keyed run pending |
+| sqltok at 1000 | 703 | 401,285 | 36.3% | keyed run pending |
+| sqltok at 2000 | 944 | 521,760 | 17.2% | keyed run pending |
+| sqltok at 4000 | 1064 | 581,559 | 7.7% | keyed run pending |
+
+Two honest notes. The token reduction looks modest because BIRD schemas are small (the full dump averages 1161 tokens); the savings grow with schema size, while recall is the size-independent correctness metric. Precision is near 40 percent because FK-neighbour expansion deliberately spends spare budget on likely join targets to lift full-recall; set `CoverageSelector(schema, fk_min_links=2)` to trade recall for tokens. Execution accuracy is filled in from a keyed run with the official BIRD script. See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md).
 
 Reproduce with a free run that needs no API keys, using the mock client:
 

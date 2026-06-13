@@ -46,6 +46,38 @@ def test_coverage_reports_covered_weight_fraction(sample_db) -> None:
     assert 0.0 < ctx.covered_weight <= 1.0
 
 
+def test_coverage_fk_expansion_pulls_in_join_target() -> None:
+    # The question grounds to orders. customers is its FK neighbour and a likely
+    # join target, so coverage should spend spare budget to include it.
+    ddl = """
+    CREATE TABLE orders (
+      id INTEGER PRIMARY KEY, customer_id INTEGER, amount REAL,
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
+    );
+    CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);
+    """
+    selector = CoverageSelector(parse_ddl(ddl))
+    ctx = selector.select("total orders amount", token_budget=4000, counter=TokenCounter())
+    assert "orders" in ctx.tables
+    assert "customers" in ctx.tables
+    assert "customers" in ctx.fk_expanded
+
+
+def test_coverage_fk_min_links_two_is_stricter() -> None:
+    # With min_links=2 a single-link neighbour is not pulled in.
+    ddl = """
+    CREATE TABLE orders (
+      id INTEGER PRIMARY KEY, customer_id INTEGER, amount REAL,
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
+    );
+    CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);
+    """
+    schema = parse_ddl(ddl)
+    strict = CoverageSelector(schema, fk_min_links=2)
+    ctx = strict.select("total orders amount", token_budget=4000, counter=TokenCounter())
+    assert "customers" not in ctx.fk_expanded
+
+
 def test_coverage_fallback_when_no_grounding(sample_db) -> None:
     # A question with no lexical/value overlap still yields a budget-safe context
     # (smallest-tables-first fallback), never an exception.
