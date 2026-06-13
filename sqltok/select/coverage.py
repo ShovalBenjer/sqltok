@@ -26,7 +26,7 @@ from ..grounding.affinity import GroundedQuery
 from ..models import Schema
 from ..tokenizer import TokenCounter
 from .base import BudgetPacker
-from .connect import connect_selection
+from .connect import connect_selection, expand_fk_neighbors
 
 
 class CoverageSelector:
@@ -40,9 +40,18 @@ class CoverageSelector:
 
     name = "coverage"
 
-    def __init__(self, schema: Schema, *, grounding: SchemaGrounding | None = None) -> None:
+    def __init__(
+        self,
+        schema: Schema,
+        *,
+        grounding: SchemaGrounding | None = None,
+        fk_min_links: int = 1,
+    ) -> None:
         self.schema = schema
         self.grounding = grounding if grounding is not None else SchemaGrounding(schema)
+        # Minimum number of selected tables an FK neighbour must link to before it
+        # is pulled in. 1 maximises recall, 2 favours precision and token savings.
+        self.fk_min_links = fk_min_links
 
     def select(
         self,
@@ -67,7 +76,14 @@ class CoverageSelector:
         else:
             self._fallback_pack(packer)
 
-        bridges = connect_selection(packer) if fk_expand else []
+        fk_added: list[str] = []
+        bridges: list[str] = []
+        if fk_expand:
+            # Spend leftover budget on FK neighbours of the covered tables
+            # (where join targets live), then bridge any disjoint components.
+            seeds = list(packer.selected)
+            fk_added = expand_fk_neighbors(packer, seeds, min_links=self.fk_min_links)
+            bridges = connect_selection(packer)
 
         text = packer.render()
         total_weight = float(grounded.weights.sum()) if grounded.weights.size else 0.0
@@ -80,6 +96,7 @@ class CoverageSelector:
             encoding_name=counter.encoding_name,
             selector=self.name,
             bridge_tables=bridges,
+            fk_expanded=fk_added,
             covered_weight=covered / total_weight if total_weight else 0.0,
         )
 

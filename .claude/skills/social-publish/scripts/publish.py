@@ -21,7 +21,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lint_post import lint  # noqa: E402
@@ -33,7 +33,9 @@ def http_json(url: str, payload: dict, headers: dict, *, dry_run: bool) -> tuple
                 for k, v in headers.items()}
     if dry_run:
         return True, f"DRY RUN POST {url}\nheaders={redacted}\nbody={json.dumps(payload, indent=2)}"
-    req = urllib.request.Request(url, data=body, headers={**headers, "Content-Type": "application/json"}, method="POST")
+    req = urllib.request.Request(
+        url, data=body, headers={**headers, "Content-Type": "application/json"}, method="POST"
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return True, f"OK {resp.status} {resp.read(200).decode('utf-8', 'replace')}"
@@ -63,7 +65,7 @@ def post_bluesky(text: str, dry_run: bool) -> tuple[bool, str]:
     except Exception:
         return False, f"could not parse session: {msg}"
     record = {"$type": "app.bsky.feed.post", "text": text,
-              "createdAt": datetime.now(timezone.utc).isoformat()}
+              "createdAt": datetime.now(UTC).isoformat()}
     return http_json(f"{pds}/xrpc/com.atproto.repo.createRecord",
                      {"repo": session["did"], "collection": "app.bsky.feed.post", "record": record},
                      {"Authorization": f"Bearer {session['accessJwt']}"}, dry_run=False)
@@ -78,7 +80,9 @@ def post_mastodon(text: str, dry_run: bool) -> tuple[bool, str]:
                      {"Authorization": f"Bearer {token}"}, dry_run=dry_run)
 
 
-def post_devto(text: str, dry_run: bool, title: str | None, canonical: str | None, tags: str | None) -> tuple[bool, str]:
+def post_devto(
+    text: str, dry_run: bool, title: str | None, canonical: str | None, tags: str | None
+) -> tuple[bool, str]:
     key = os.environ.get("DEVTO_API_KEY")
     if not key:
         return False, "missing DEVTO_API_KEY"

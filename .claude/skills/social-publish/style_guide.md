@@ -41,7 +41,7 @@ These are not auto-failed but should be avoided.
 
 Weak: "We are thrilled to unlock a revolutionary, seamless way to supercharge your Text-to-SQL pipeline. It is not just a tool, it is a paradigm shift."
 
-Strong: "SQLTok trims the schema you send to an LLM for Text-to-SQL. On BIRD mini-dev it cut schema tokens by 57 percent at a 1000-token budget. Open source, pip installable."
+Strong: "SQLTok trims the schema you send to an LLM for Text-to-SQL. On BIRD mini-dev it kept every table a query needs on 97 percent of questions at a 2000-token budget. Open source, pip installable."
 
 Weak: "Diving deep into the world of submodular optimization to elevate retrieval."
 

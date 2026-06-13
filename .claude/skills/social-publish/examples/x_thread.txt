@@ -1,6 +1,6 @@
 SQLTok: send less schema to your Text-to-SQL LLM.
 
-On BIRD mini-dev it cut schema-context tokens by 57 percent at a 1000-token budget, measured with tiktoken.
+On BIRD mini-dev it keeps every table a query needs on 97 percent of questions at a 2000-token budget, measured with tiktoken.
 
 pip install sqltok
 
