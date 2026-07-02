@@ -31,6 +31,7 @@ dependencies = [
 embeddings = ["sentence-transformers>=2.2"]
 dev = [
     "pytest>=8.0",
+    "hypothesis>=6.100",
     "ruff>=0.6",
     "mypy>=1.10",
 ]

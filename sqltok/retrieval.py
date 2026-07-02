@@ -88,8 +88,13 @@ class TableRetriever:
             corpus_tokens = bm25s.tokenize(
                 self._documents, stopwords="en", show_progress=False
             )
-            self._bm25 = bm25s.BM25()
-            self._bm25.index(corpus_tokens, show_progress=False)
+            # A degenerate corpus (e.g. all names tokenize to nothing) yields an
+            # empty vocabulary, which bm25s cannot index. Fall back to no index;
+            # rank() then returns zeros and breaks ties by name.
+            vocab = getattr(corpus_tokens, "vocab", None)
+            if vocab:
+                self._bm25 = bm25s.BM25()
+                self._bm25.index(corpus_tokens, show_progress=False)
 
         self._doc_embeddings: np.ndarray | None = None
         if self.use_embeddings and self._documents and self.embedding_fn is not None:
@@ -134,8 +139,10 @@ class TableRetriever:
         )
         if not query_tokens or not query_tokens[0]:
             return np.zeros(len(self._names), dtype=float)
-        scores = self._bm25.get_scores(query_tokens[0])
-        return np.asarray(scores, dtype=float)
+        scores = np.asarray(self._bm25.get_scores(query_tokens[0]), dtype=float)
+        # Degenerate (empty) documents can yield NaN scores; treat them as zero
+        # so ranking stays finite and deterministic.
+        return np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
 
     def _embedding_scores(self, question: str) -> np.ndarray:
         assert self.embedding_fn is not None and self._doc_embeddings is not None
