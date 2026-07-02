@@ -50,16 +50,23 @@ Reproduce: `python benchmarks/run_bird.py --provider mock --questions benchmarks
   all-null columns, or values absent from the first sampled rows), so value
   grounding has no signal for roughly one column in six.
 
-## Execution accuracy (pending a keyed run)
+## Execution accuracy (run it free, no API key)
 
 Token and recall numbers do not prove the model answers correctly. That needs a
-real LLM and the official BIRD execution-accuracy script:
+real LLM and the official BIRD execution-accuracy script. You can do this with no
+OpenAI or Anthropic key using a local model through Ollama:
 
 ```bash
-export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY
-python benchmarks/run_bird.py --provider anthropic --model claude-3-5-sonnet \
+# one-time: install Ollama, then pull a coding model
+ollama pull qwen2.5-coder:7b
+
+python benchmarks/run_bird.py --provider ollama --model qwen2.5-coder:7b \
   --questions benchmarks/data/minidev/MINIDEV/mini_dev_sqlite.json \
   --db-root  benchmarks/data/minidev/MINIDEV/dev_databases \
-  --budgets 1000 2000 4000 --in-price 3 --out-price 15
+  --budgets 1000 2000 4000
 # then score each predict_*.json with benchmarks/third_party/bird_eval/
 ```
+
+Hosted providers work the same way if you prefer (`--provider anthropic` or
+`--provider openai`, reading the usual env keys), but they are optional. The
+local path costs nothing.

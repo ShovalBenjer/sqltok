@@ -17,9 +17,9 @@ Example (free, no API keys, on the committed sample fixture)::
 
     python benchmarks/run_bird.py --provider mock --data-dir benchmarks/sample_data --limit 5
 
-Example (real run on BIRD mini-dev)::
+Example (keyless real run on BIRD mini-dev via a local Ollama model)::
 
-    python benchmarks/run_bird.py --provider anthropic --model claude-3-5-sonnet \\
+    python benchmarks/run_bird.py --provider ollama --model qwen2.5-coder:7b \\
         --data-dir benchmarks/data --budgets 1000 2000 4000
 """
 
@@ -262,7 +262,9 @@ def write_outputs(results: dict[str, ArmResult], out_dir: Path, args: argparse.N
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the SQLTok BIRD mini-dev benchmark.")
-    p.add_argument("--provider", default="mock", choices=["mock", "anthropic", "openai"])
+    p.add_argument(
+        "--provider", default="mock", choices=["mock", "ollama", "anthropic", "openai"]
+    )
     p.add_argument("--model", default="mock-1", help="Model name for the chosen provider.")
     p.add_argument("--data-dir", default="benchmarks/data")
     p.add_argument("--questions", default=None, help="Override questions JSON path.")
