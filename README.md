@@ -206,10 +206,10 @@ Token reduction vs the full-dump baseline.
 
 | arm | schema tokens (mean) | total input tokens | total input reduction | execution accuracy |
 | --- | ---: | ---: | ---: | ---: |
-| baseline (full dump) | 1161 | 629,819 | reference | keyed run pending |
-| sqltok at 1000 | 703 | 401,285 | 36.3% | keyed run pending |
-| sqltok at 2000 | 944 | 521,760 | 17.2% | keyed run pending |
-| sqltok at 4000 | 1064 | 581,559 | 7.7% | keyed run pending |
+| baseline (full dump) | 1161 | 629,819 | reference | run pending |
+| sqltok at 1000 | 703 | 401,285 | 36.3% | run pending |
+| sqltok at 2000 | 944 | 521,760 | 17.2% | run pending |
+| sqltok at 4000 | 1064 | 581,559 | 7.7% | run pending |
 
 Two honest notes. The token reduction looks modest because BIRD schemas are small (the full dump averages 1161 tokens); the savings grow with schema size, while recall is the size-independent correctness metric. Precision is near 40 percent because FK-neighbour expansion deliberately spends spare budget on likely join targets to lift full-recall; set `CoverageSelector(schema, fk_min_links=2)` to trade recall for tokens. Execution accuracy is filled in from a keyed run with the official BIRD script. See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md).
 
@@ -220,16 +220,17 @@ python benchmarks/make_sample_data.py
 python benchmarks/run_bird.py --provider mock --data-dir benchmarks/sample_data --limit 5
 ```
 
-Run on BIRD mini-dev:
+Run execution accuracy on BIRD mini-dev with no API key, using a local model through Ollama:
 
 ```bash
 bash benchmarks/download.sh
-export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY
-python benchmarks/run_bird.py --provider anthropic --model claude-3-5-sonnet \
-    --data-dir benchmarks/data --budgets 1000 2000 4000 --in-price 3 --out-price 15
+ollama pull qwen2.5-coder:7b
+python benchmarks/run_bird.py --provider ollama --model qwen2.5-coder:7b \
+    --questions benchmarks/data/minidev/MINIDEV/mini_dev_sqlite.json \
+    --db-root  benchmarks/data/minidev/MINIDEV/dev_databases --budgets 1000 2000 4000
 ```
 
-Responses are cached on disk, keyed by a hash of prompt and model, so reruns are free and the run is resumable.
+Hosted providers are optional (`--provider anthropic` or `--provider openai`, reading the usual env keys). Responses are cached on disk, keyed by a hash of prompt and model, so reruns are free and resumable.
 
 ## API
 

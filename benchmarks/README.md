@@ -3,8 +3,8 @@
 Compares two ways of feeding schema to an LLM, holding the model and prompt
 template fixed and varying **only** the schema context:
 
-- **baseline** — full schema dump (every `CREATE TABLE` + 1 sample row/table).
-- **sqltok** — `SchemaBudgetManager` output at token budgets 1000 / 2000 / 4000.
+- **baseline**, full schema dump (every `CREATE TABLE` + 1 sample row/table).
+- **sqltok**, `SchemaBudgetManager` output at token budgets 1000 / 2000 / 4000.
 
 ## Smoke run (no API keys, free)
 
@@ -27,23 +27,28 @@ accounting, caching, and outputs.
 1. Fetch the dataset (not committed): `bash benchmarks/download.sh` and follow
    the instructions to place `benchmarks/data/questions.json` and
    `benchmarks/data/dev_databases/<db_id>/<db_id>.sqlite`.
-2. Set the provider key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) and run:
+2. Run with a local model through Ollama, which needs no API key and costs
+   nothing:
 
    ```bash
-   python benchmarks/run_bird.py --provider anthropic --model claude-3-5-sonnet \
-       --data-dir benchmarks/data --budgets 1000 2000 4000 \
-       --in-price 3 --out-price 15
+   ollama pull qwen2.5-coder:7b
+   python benchmarks/run_bird.py --provider ollama --model qwen2.5-coder:7b \
+       --questions benchmarks/data/minidev/MINIDEV/mini_dev_sqlite.json \
+       --db-root  benchmarks/data/minidev/MINIDEV/dev_databases \
+       --budgets 1000 2000 4000
    ```
 
-   Responses are cached under `benchmarks/.llm_cache/` (keyed by hash of
-   prompt+model), so reruns are free and the run is resumable. Use `--limit 20`
-   for a cheap smoke test against the real data.
-3. Score execution accuracy with BIRD's **official** script — see
-   `third_party/bird_eval/README.md` — and paste the numbers into
+   Hosted providers are optional (`--provider anthropic` or `--provider openai`,
+   reading `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, add `--in-price`/`--out-price`
+   for cost estimates). Responses are cached under `benchmarks/.llm_cache/`
+   (keyed by hash of prompt+model), so reruns are free and resumable. Use
+   `--limit 20` for a quick smoke test against the real data.
+3. Score execution accuracy with BIRD's **official** script, see
+   `third_party/bird_eval/README.md`, and paste the numbers into
    `results/results.md`.
 
 ## Flags
 
-`--provider {mock,anthropic,openai}`, `--model`, `--budgets ...`,
+`--provider {mock,ollama,anthropic,openai}`, `--model`, `--budgets ...`,
 `--no-baseline`, `--limit N`, `--sample-rows`, `--encoding`,
 `--in-price/--out-price`, `--data-dir/--questions/--db-root/--out-dir/--cache-dir`.
