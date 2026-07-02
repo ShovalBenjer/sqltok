@@ -10,8 +10,13 @@ from __future__ import annotations
 
 import sqlglot
 from sqlglot import exp
+from sqlglot.errors import SqlglotError
 
 from .models import Column, ForeignKey, Schema, Table
+
+
+class DDLParseError(ValueError):
+    """Raised when the DDL cannot be parsed. Subclasses ``ValueError``."""
 
 
 def parse_ddl(ddl: str, *, dialect: str | None = None) -> Schema:
@@ -25,9 +30,16 @@ def parse_ddl(ddl: str, *, dialect: str | None = None) -> Schema:
     Returns:
         A :class:`Schema` with one :class:`Table` per parsed ``CREATE TABLE``.
         Non-``CREATE TABLE`` statements are ignored.
+
+    Raises:
+        DDLParseError: If the SQL cannot be parsed.
     """
     schema = Schema()
-    for statement in sqlglot.parse(ddl, read=dialect):
+    try:
+        statements = sqlglot.parse(ddl, read=dialect)
+    except SqlglotError as exc:
+        raise DDLParseError(str(exc)) from exc
+    for statement in statements:
         if not isinstance(statement, exp.Create):
             continue
         if (statement.args.get("kind") or "").upper() != "TABLE":

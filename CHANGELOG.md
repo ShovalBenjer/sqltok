@@ -16,10 +16,16 @@ Keep a Changelog, and the project adheres to Semantic Versioning.
 
 - `benchmarks/eval_recall.py`: schema-linking recall against BIRD gold SQL, no
   API key required.
-- Property-based tests (`tests/test_property.py`, Hypothesis) proving the budget
-  invariant, determinism, and validity over arbitrary generated schemas.
-- Scale test (`tests/test_scale.py`) on a 500-table synthetic schema.
-- `hypothesis` added to the `dev` extra.
+- Keyless local benchmark provider (`--provider ollama`) so execution accuracy
+  can be scored with no OpenAI or Anthropic key.
+- `DDLParseError` (a `ValueError` subclass): `parse_ddl` now raises this instead
+  of leaking sqlglot's exception type.
+- Test pyramid additions: property-based (`tests/test_property.py`), statistical
+  (`tests/test_statistical.py`), fuzz/chaos on the DDL parser
+  (`tests/test_fuzz_ddl.py`), regression snapshots (`tests/test_regression.py`),
+  and a 500-table scale test (`tests/test_scale.py`). 61 tests total.
+- `hypothesis` added to the `dev` extra. `Makefile` and `RUNBOOK.md` for common
+  tasks and the release path.
 
 ### Fixed
 
