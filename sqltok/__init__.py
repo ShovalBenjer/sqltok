@@ -19,7 +19,7 @@ Quickstart::
 from __future__ import annotations
 
 from .context import SchemaContext
-from .ddl import parse_ddl
+from .ddl import DDLParseError, parse_ddl
 from .grounding import SchemaGrounding
 from .introspect import introspect_sqlite
 from .manager import SchemaBudgetManager
@@ -53,6 +53,7 @@ __all__ = [
     "RankedTable",
     "TokenCounter",
     "parse_ddl",
+    "DDLParseError",
     "introspect_sqlite",
     "__version__",
 ]
