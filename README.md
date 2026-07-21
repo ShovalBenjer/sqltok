@@ -6,6 +6,8 @@
 
 <p><b>A schema token budget manager for Text-to-SQL.</b> Given a database and a question, SQLTok selects only the relevant tables and columns within a hard token budget and returns a compact schema string for the prompt.</p>
 
+<p>On BIRD mini-dev (500 questions): keeps <b>97%</b> of gold-query tables at a 2,000-token budget and cuts prompt input <b>36%</b> at 1,000 tokens, benchmarked against BM25. Details in <a href="#benchmark">Benchmark</a>.</p>
+
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/ShovalBenjer/sqltok/actions/workflows/ci.yml/badge.svg)](https://github.com/ShovalBenjer/sqltok/actions/workflows/ci.yml)
