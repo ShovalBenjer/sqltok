@@ -41,6 +41,8 @@ When a large language model writes SQL from natural language, it needs the datab
 
 SQLTok is a Python library that addresses this directly. For each question it selects only the relevant tables and columns within a configurable token budget, and emits a compact `CREATE TABLE` style schema string. Token counts are measured with `tiktoken` rather than estimated, and the selected tables are guaranteed to be connected by foreign keys, so the model can write valid joins.
 
+Try it live: paste a schema and a question, watch the budget work. See [`demo/`](demo/) for a one-click Streamlit deploy.
+
 ```python
 from sqltok import SchemaBudgetManager
 
