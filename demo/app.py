@@ -70,6 +70,5 @@ if go:
         st.text(f"Bridge tables added for joins: {', '.join(ctx.bridge_tables)}")
     st.code(ctx.text, language="sql")
     st.caption(
-        "Selector: {ctx.selector} · budget {ctx.budget} · every token measured with tiktoken."
-        .format(ctx=ctx)
+        f"Selector: {ctx.selector} · budget {ctx.budget} · every token measured with tiktoken."
     )
