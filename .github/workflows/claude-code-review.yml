@@ -1,7 +1,5 @@
 name: Claude Code Review
 
-# Trigger re-run of Kilo Code Review after rate-limit transient failure
-
 # Always-fresh review: `synchronize` fires on EVERY push to the PR branch, and the
 # concurrency group cancels any in-flight review so each push starts a fresh one
 # (workflow equivalent of "@claude review always" on a Manual-mode repo).
