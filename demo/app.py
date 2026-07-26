@@ -6,26 +6,25 @@ from sqltok import SchemaBudgetManager
 
 st.set_page_config(page_title="SQLTok", page_icon="🧮", layout="wide")
 
-DEFAULT_DDL = (
-    "CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, city_id INTEGER,\n"
-    "                       created_at TEXT);\n"
-    "CREATE TABLE cities (id INTEGER PRIMARY KEY, name TEXT, country_id INTEGER);\n"
-    "CREATE TABLE countries (id INTEGER PRIMARY KEY, name TEXT, region TEXT);\n"
-    "CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, total REAL, status TEXT,\n"
-    "                     placed_at TEXT, FOREIGN KEY (customer_id) REFERENCES customers(id));\n"
-    "CREATE TABLE order_items (id INTEGER PRIMARY KEY, order_id INTEGER, product_id INTEGER,\n"
-    "                          qty INTEGER, FOREIGN KEY (order_id) REFERENCES orders(id),\n"
-    "                          FOREIGN KEY (product_id) REFERENCES products(id));\n"
-    "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, category_id INTEGER, price REAL);\n"
-    "CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT);\n"
-    "CREATE TABLE suppliers (id INTEGER PRIMARY KEY, name TEXT, country_id INTEGER);\n"
-    "CREATE TABLE inventory (product_id INTEGER, warehouse_id INTEGER, on_hand INTEGER);\n"
-    "CREATE TABLE warehouses (id INTEGER PRIMARY KEY, name TEXT, city_id INTEGER);\n"
-    "CREATE TABLE reviews (id INTEGER PRIMARY KEY, product_id INTEGER, customer_id INTEGER,\n"
-    "                      stars INTEGER, body TEXT);\n"
-    "CREATE TABLE support_tickets (id INTEGER PRIMARY KEY, customer_id INTEGER,\n"
-    "                              subject TEXT, status TEXT);"
-)
+DEFAULT_DDL = "\n".join([
+    "CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, city_id INTEGER, created_at TEXT);",
+    "CREATE TABLE cities (id INTEGER PRIMARY KEY, name TEXT, country_id INTEGER);",
+    "CREATE TABLE countries (id INTEGER PRIMARY KEY, name TEXT, region TEXT);",
+    "CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, total REAL, status TEXT, placed_at TEXT,",
+    "                     FOREIGN KEY (customer_id) REFERENCES customers(id));",
+    "CREATE TABLE order_items (id INTEGER PRIMARY KEY, order_id INTEGER, product_id INTEGER, qty INTEGER,",
+    "                          FOREIGN KEY (order_id) REFERENCES orders(id),",
+    "                          FOREIGN KEY (product_id) REFERENCES products(id));",
+    "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, category_id INTEGER, price REAL);",
+    "CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT);",
+    "CREATE TABLE suppliers (id INTEGER PRIMARY KEY, name TEXT, country_id INTEGER);",
+    "CREATE TABLE inventory (product_id INTEGER, warehouse_id INTEGER, on_hand INTEGER);",
+    "CREATE TABLE warehouses (id INTEGER PRIMARY KEY, name TEXT, city_id INTEGER);",
+    "CREATE TABLE reviews (id INTEGER PRIMARY KEY, product_id INTEGER, customer_id INTEGER,",
+    "                      stars INTEGER, body TEXT);",
+    "CREATE TABLE support_tickets (id INTEGER PRIMARY KEY, customer_id INTEGER,",
+    "                              subject TEXT, status TEXT);",
+])
 
 st.title("SQLTok")
 st.caption(
