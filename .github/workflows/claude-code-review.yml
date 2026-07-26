@@ -45,5 +45,3 @@ jobs:
           claude_args: |
             --model claude-sonnet-5
             --max-turns 10
-
-# Trigger CI re-run
