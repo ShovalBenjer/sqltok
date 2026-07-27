@@ -27,6 +27,9 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
+          # Restrict to kilo-code-bot to prevent any untrusted bot from triggering
+          # automated reviews (see Kilo review thread PRR_kwDOS145as7ZviP_)
+          allowed_bots: kilo-code-bot
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
           prompt: |
