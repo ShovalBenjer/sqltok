@@ -19,7 +19,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,7 +26,6 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          allowed_bots: kilo-code-bot
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_bots: '*'
