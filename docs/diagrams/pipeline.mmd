@@ -1,0 +1,22 @@
+```mermaid
+flowchart LR
+    A["Question"] --> B["Stage 1:\nValue grounding\n(MinHash + LSH)"]
+    C["Schema"] --> B
+    D["Token budget"] --> F
+
+    B -->|"cover[table, mention]\n+ weights"| E["Stage 2:\nSubmodular\nbudgeting\n(CELF greedy)"]
+    E -->|"selected tables"| G["Stage 3:\nFK Steiner\nconnectivity\n(bridge tables)"]
+    G -->|"join-connected\nselection"| H["Stage 4:\nBudget guarantee\n(tiktoken re-measure)"]
+    D --> H
+
+    H -->|"<= budget"| I["Compact CREATE TABLE\nschema string"]
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#f9f,stroke:#333,stroke-width:2px
+    style I fill:#9f9,stroke:#333,stroke-width:2px
+```
+
+SQLTok pipeline: a question, a schema, and a token budget enter a four-stage
+pipeline and exit as a compact, joinable schema string guaranteed to fit the
+budget.

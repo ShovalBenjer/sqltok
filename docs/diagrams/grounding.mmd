@@ -1,0 +1,18 @@
+```mermaid
+flowchart LR
+    Q["Question:\n'total orders for\ncustomers in France'"]
+    Q -->|"extract mentions"| M["Mentions:\nFrance, customers,\norders, ..."]
+    M -->|"character shingles"| S["Shingles:\n{FRA,RAN,ANC,NCE}, ..."]
+    S -->|"MinHash\n64 permutations"| Sig["Signatures:\n[v12, -5, 88, ...]"]
+    Sig -->|"banded LSH\n32 bands x 2 rows"| Idx["LSH Index:\ntable names,\ncolumn names,\nsampled values"]
+    Idx -->|"query shingles"| Hit["Hits:\n'France' ->\ncustomers.country\nvalue -> customers"]
+    Hit -->|"cover matrix\n+ IDF weights"| Out["cover[table, mention]\nweight per mention"]
+
+    style Q fill:#f9f,stroke:#333,stroke-width:2px
+    style Out fill:#9f9,stroke:#333,stroke-width:2px
+```
+
+Value grounding with MinHash and LSH. The mention "France" becomes character
+shingles, is compressed into a MinHash signature, and looked up in a banded LSH
+index that holds every table name, column name, and sampled value. The collision
+with `customers.country`'s sampled values grounds "France" to `customers`.

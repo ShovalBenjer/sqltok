@@ -1,0 +1,25 @@
+```mermaid
+flowchart LR
+    subgraph Before["Before: relevance-only selection"]
+        P["products"] -->|"relevant"| R1["Relevant tables"]
+        O["orders"] -->|"relevant"| R1
+        R1 -->|"no FK path"| Prob["Model invents\nincorrect join"]
+    end
+
+    subgraph After["After: FK Steiner bridge"]
+        P2["products"] -->|"connected via"| L["line_items"]
+        L -->|"connected via"| O2["orders"]
+        P2 -->|"joinable"| OK["Model writes\ncorrect join"]
+        O2 -->|"joinable"| OK
+    end
+
+    Before -->|"add minimal\nbridge table"| After
+
+    style OK fill:#9f9,stroke:#333,stroke-width:2px
+    style Prob fill:#f99,stroke:#333,stroke-width:2px
+```
+
+Foreign-key Steiner connectivity. A relevance-only selection can contain
+`products` and `orders` with no join path between them. SQLTok finds the
+shortest FK path and adds `line_items` as a bridge, making the schema joinable
+and preventing hallucinated joins.
