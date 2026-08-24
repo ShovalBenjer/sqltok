@@ -50,25 +50,3 @@ Repo Settings, Pages, Source: Deploy from a branch, Branch: `gh-pages`. The
 `.github/workflows/site.yml` workflow renders the Quarto site and pushes to
 `gh-pages` on every push to `main`. The site lands at
 `https://shovalbenjer.github.io/sqltok/`.
-
-## 4. Social posting
-
-Set credentials as environment secrets (never in the repo or chat), then post
-through the skill. Bluesky is the fastest to set up.
-
-```bash
-# after setting BLUESKY_HANDLE and BLUESKY_APP_PASSWORD in the environment
-python .claude/skills/social-publish/scripts/publish.py \
-  --platform bluesky --file .claude/skills/social-publish/examples/bluesky.txt
-# review the dry-run output, then add --confirm to actually post
-```
-
-Or run the GitHub Actions button: Actions, Social post, Run workflow, pick the
-platform and draft, leave confirm false for a dry run. Secrets go in repo
-Settings, Secrets and variables, Actions.
-
-## 5. matchiq
-
-To give another repo the same posting setup, copy
-`.claude/skills/social-publish/` and `.github/workflows/social-post.yml` into it
-and add the same secrets in that repo's Actions settings.
