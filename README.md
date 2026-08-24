@@ -117,53 +117,21 @@ mgr = SchemaBudgetManager(schema, selector=RelevanceGreedySelector(schema))
 
 ## How it works
 
-SQLTok turns a schema, a question, and a budget into a budgeted, joinable schema string in four stages. For a longer, illustrated walkthrough with the full math, see the [visual guide](docs/blog/visual-guide-to-sqltok.md).
+SQLTok turns a schema, a question, and a budget into a budgeted, joinable schema string in four stages. For a longer, illustrated walkthrough with the full math, see the [visual guide](site/posts/visual-guide-to-sqltok/).
 
 <p align="center"><img src="assets/diagrams/pipeline.svg" alt="SQLTok pipeline: grounding, coverage, foreign-key Steiner connectivity, and a measured budget" width="900" /></p>
 
 ### Stage 1: value grounding
 
-The goal is a matrix `cover[table, mention]` in the range zero to one, plus a weight for each mention.
-
-1. Mention extraction (`grounding/text.py`). The question is split into candidate phrases: one to three word n-grams plus quoted literals, with stopwords trimmed from the edges. For example, "total revenue by region" yields "total revenue", "revenue", and "region".
-
-2. Character shingling. Each string becomes a set of three-character substrings. "France" becomes the set {fra, ran, anc, nce}. Character shingles give fuzzy matching that is robust to plurals, casing, and small typos, so "widgets" and "widget" share most of their shingles.
-
-3. MinHash (`grounding/minhash.py`). Each shingle set is reduced to a signature of length 64. The defining property is that the probability that two sets share the same minimum hash in a given position equals their Jaccard similarity:
-
-   ```
-   P(min h_i(A) = min h_i(B)) = |A intersect B| / |A union B| = Jaccard(A, B)
-   ```
-
-   Therefore the fraction of equal signature positions is an unbiased estimate of the Jaccard similarity, computed by comparing two vectors of 64 integers instead of two raw sets. Fixed seeds make this deterministic.
-
-4. Banded LSH (`grounding/lsh.py`). Every schema string, meaning table names, column names, and sampled cell values, is indexed by its signature, split into 32 bands of 2 rows. Items that match across a full band fall into the same bucket, and a query inspects only colliding buckets. This produces candidates in near constant time rather than scanning every value. The collision threshold is approximately `(1 / bands) ** (1 / rows)`, about 0.18, which favors recall. This is the value-grounding idea from CHESS, implemented natively.
-
-5. Affinity and self-supervised IDF (`grounding/affinity.py`). For each mention, the best estimated Jaccard match per table becomes an entry of `cover`. Each mention is then weighted by an inverse document frequency learned from the schema itself:
-
-   ```
-   weight(m) = log(1 + num_tables / df(m))
-   ```
-
-   where `df(m)` is the number of tables the mention touches. A mention that hits every table, such as `id` or `name`, carries close to zero weight, while a mention that hits a single table is highly discriminative. The signal comes from the database, not from a generic English corpus.
-
-The motivating case is "widgets", a value in `products.category` that appears in no column name. Name-based BM25 cannot see it, while the LSH over values grounds it to `products` with high affinity.
+The goal is a matrix `cover[table, mention]` in the range zero to one, plus a weight for each mention. Candidate phrases are extracted from the question, turned into character shingles, compressed with MinHash, and looked up in a banded LSH index over table names, column names, and sampled cell values. Each mention is then weighted by an inverse document frequency learned from the schema itself, so that rare, discriminative mentions count more than generic ones like `id`.
 
 ### Stage 2: submodular budgeting
 
-The objective (`select/coverage.py`) is weighted maximum coverage:
-
-```
-f(S) = sum over mentions m of  weight(m) * max over tables T in S of cover(m, T)
-```
-
-Each mention scores through the single best table that covers it. The use of `max` gives diminishing returns: once a mention is covered, another table that covers it adds zero marginal value, so redundancy is handled automatically and `f` is monotone and submodular. For such functions, the greedy maximizer has the classic `(1 - 1/e)`, about 0.63, approximation guarantee, which is a bound rather than a heuristic.
-
-Tables have different token costs, so the selection is a knapsack. At each step SQLTok picks the table that maximizes marginal gain divided by token cost, which is the token-budgeted, redundancy-aware rule from AdaGReS, and commits it only if the re-measured context still fits the budget. Because marginal gains only decrease as tables are added, a CELF lazy evaluation keeps a priority queue and recomputes a candidate only when it reaches the top, which reduces hundreds of evaluations to a few and is the part that scales to wide schemas. Ratio-greedy can be misled by a single large high-value table, so SQLTok also compares against the best single table that fits, following Khuller, Moss, and Naor, and keeps whichever covers more. If nothing grounds, it packs the smallest tables first so the output is never empty and is always within budget.
+The objective (`select/coverage.py`) is weighted maximum coverage: each mention scores through the single best table that covers it. The `max` gives diminishing returns, so `f` is monotone and submodular, and greedy maximization carries a `(1 - 1/e)` approximation guarantee. Tables have different token costs, so selection is a knapsack: SQLTok picks the table with the largest marginal gain divided by token cost, commits it only if the re-measured context still fits the budget, and uses CELF lazy evaluation to avoid recomputing every candidate at every step.
 
 ### Stage 3: foreign-key Steiner connectivity
 
-A relevance-only set can contain `products` and `orders` with no direct join, which leads the model to invent an incorrect join. SQLTok (`select/connect.py`) builds the undirected foreign-key graph, checks whether the selected tables form one connected component, and if not finds the shortest foreign-key path between components and adds the minimal bridge tables, for example `line_items` connecting `products` and `orders`, as long as the budget allows. This is a heuristic Steiner tree over the foreign-key graph, following the AutoLink observation that foreign keys are the natural bridges between relevant tables. The result is a sub-schema that is not only relevant but executably joinable.
+A relevance-only set can contain two tables with no direct join. SQLTok (`select/connect.py`) builds the undirected foreign-key graph, checks whether the selected tables form one connected component, and if not adds the minimal bridge tables along the shortest foreign-key path, as long as the budget allows.
 
 ### Stage 4: the budget guarantee
 
