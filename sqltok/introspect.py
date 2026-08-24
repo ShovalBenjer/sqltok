@@ -82,9 +82,9 @@ def _introspect_table(
     for fk in conn.execute(f'PRAGMA foreign_key_list("{name}")').fetchall():
         foreign_keys.append(
             ForeignKey(
-                column=fk["from"],
+                local_cols=[fk["from"]],
                 ref_table=fk["table"],
-                ref_column=fk["to"] or fk["from"],
+                ref_cols=[fk["to"] or fk["from"]],
             )
         )
 

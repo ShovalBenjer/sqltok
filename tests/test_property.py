@@ -54,9 +54,9 @@ def schemas(draw: st.DrawFn) -> Schema:
             if ref != name:
                 tables[name].foreign_keys.append(
                     ForeignKey(
-                        column=tables[name].columns[0].name,
+                        local_cols=[tables[name].columns[0].name],
                         ref_table=ref,
-                        ref_column=tables[ref].columns[0].name,
+                        ref_cols=[tables[ref].columns[0].name],
                     )
                 )
     return Schema(tables=tables)
