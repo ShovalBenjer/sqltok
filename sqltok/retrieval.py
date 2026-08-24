@@ -147,7 +147,8 @@ class TableRetriever:
     def _embedding_scores(self, question: str) -> np.ndarray:
         assert self.embedding_fn is not None and self._doc_embeddings is not None
         q = _normalise(np.asarray(self.embedding_fn([question]), dtype=float))
-        return (self._doc_embeddings @ q[0]).astype(float)
+        scores: np.ndarray = (self._doc_embeddings @ q[0]).astype(float)
+        return scores
 
 
 def _minmax(scores: np.ndarray) -> np.ndarray:
@@ -165,4 +166,5 @@ def _normalise(matrix: np.ndarray) -> np.ndarray:
     """L2-normalise rows of a 2D matrix for cosine similarity via dot product."""
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
-    return matrix / norms
+    result: np.ndarray = matrix / norms
+    return result
