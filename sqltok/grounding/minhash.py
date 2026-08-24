@@ -43,8 +43,9 @@ class MinHasher:
             return np.full(self.num_perm, _MAX_HASH, dtype=np.uint64)
         hashes = np.array([_token_hash(t) for t in tokens], dtype=np.uint64)
         # Outer combine: (a * h + b) mod prime, then min over tokens per perm.
-        permuted = (np.outer(self._a, hashes) + self._b[:, None]) % _MERSENNE_PRIME
-        return permuted.min(axis=1).astype(np.uint64)
+        permuted: np.ndarray = (np.outer(self._a, hashes) + self._b[:, None]) % _MERSENNE_PRIME
+        result: np.ndarray = permuted.min(axis=1).astype(np.uint64)
+        return result
 
     @staticmethod
     def estimate_jaccard(sig_a: np.ndarray, sig_b: np.ndarray) -> float:

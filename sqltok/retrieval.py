@@ -135,10 +135,11 @@ class TableRetriever:
         )
         if not query_tokens or not query_tokens[0]:
             return np.zeros(len(self._names), dtype=float)
-        scores = np.asarray(self._bm25.get_scores(query_tokens[0]), dtype=float)
+        scores: np.ndarray = np.asarray(self._bm25.get_scores(query_tokens[0]), dtype=float)
         # Degenerate (empty) documents can yield NaN scores; treat them as zero
         # so ranking stays finite and deterministic.
-        return np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
+        result: np.ndarray = np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
+        return result
 
     def _embedding_scores(self, question: str) -> np.ndarray:
         assert self.embedding_fn is not None and self._doc_embeddings is not None
