@@ -154,14 +154,14 @@ def _table_name(node: exp.Expression | None) -> str | None:
     if isinstance(node, exp.Table):
         return node.name
     if isinstance(node, exp.Identifier):
-        return node.this
+        return str(node.this)
     return node.name if hasattr(node, "name") else None
 
 
 def _ident(node: exp.Expression) -> str:
     """Extract an identifier name from a column/identifier node."""
     if isinstance(node, exp.Identifier):
-        return node.this
+        return str(node.this)
     if isinstance(node, exp.Column):
         return node.name
     return node.name if hasattr(node, "name") else str(node)
