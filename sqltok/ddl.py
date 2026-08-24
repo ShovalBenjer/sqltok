@@ -117,15 +117,14 @@ def _parse_reference(column: str, ref: exp.Reference) -> ForeignKey | None:
     if isinstance(schema_expr, exp.Schema):
         ref_table = _table_name(schema_expr.this)
         ref_cols = [_ident(e) for e in schema_expr.expressions]
-        ref_col = ref_cols[0] if ref_cols else column
     elif isinstance(schema_expr, exp.Table):
         ref_table = _table_name(schema_expr)
-        ref_col = column
+        ref_cols = [column]
     else:
         return None
     if ref_table is None:
         return None
-    return ForeignKey(column=column, ref_table=ref_table, ref_column=ref_col)
+    return ForeignKey(local_cols=[column], ref_table=ref_table, ref_cols=ref_cols)
 
 
 def _parse_table_fk(fk: exp.ForeignKey) -> ForeignKey | None:
@@ -140,13 +139,12 @@ def _parse_table_fk(fk: exp.ForeignKey) -> ForeignKey | None:
         ref_cols = [_ident(e) for e in schema_expr.expressions]
     elif isinstance(schema_expr, exp.Table):
         ref_table = _table_name(schema_expr)
-        ref_cols = []
+        ref_cols = list(local_cols)
     else:
         return None
     if ref_table is None:
         return None
-    ref_col = ref_cols[0] if ref_cols else local_cols[0]
-    return ForeignKey(column=local_cols[0], ref_table=ref_table, ref_column=ref_col)
+    return ForeignKey(local_cols=local_cols, ref_table=ref_table, ref_cols=ref_cols)
 
 
 def _table_name(node: exp.Expression | None) -> str | None:
