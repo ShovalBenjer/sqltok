@@ -16,6 +16,7 @@ jobs:
     # Skip drafts; reviews restart when marked ready
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
@@ -30,6 +31,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_bots: '*'
           track_progress: true
+          timeout: 600000
           prompt: |
             Perform a fresh, full review of this PR (do not assume prior reviews).
             Focus, in order: (1) correctness bugs that break behavior, (2) security

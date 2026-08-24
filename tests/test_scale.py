@@ -28,7 +28,7 @@ def _wide_schema(n_tables: int) -> Schema:
         ]
         columns[0].primary_key = True
         fks = (
-            [ForeignKey(column="col1", ref_table=f"t{i - 1}", ref_column="col0")]
+            [ForeignKey(local_cols=["col1"], ref_table=f"t{i - 1}", ref_cols=["col0"])]
             if i > 0
             else []
         )

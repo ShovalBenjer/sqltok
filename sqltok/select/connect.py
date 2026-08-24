@@ -27,6 +27,9 @@ def expand_fk_neighbors(
     seeds, prioritising tables connected to several seeds (junction tables) so
     join targets are added first. Budget-gated via :meth:`BudgetPacker.try_add`.
 
+    Composite foreign keys are treated as a single link to the referenced table,
+    so they count exactly once per seed instead of once per column.
+
     Returns the list of neighbour tables added.
     """
     counts: Counter[str] = Counter()
@@ -44,13 +47,13 @@ def expand_fk_neighbors(
 
 
 def _adjacency(schema: Schema) -> dict[str, set[str]]:
-    """Undirected foreign-key adjacency over all tables in the schema."""
-    adj: dict[str, set[str]] = {name: set() for name in schema.tables}
-    for name in schema.tables:
-        for neighbor in schema.fk_neighbors(name):
-            adj[name].add(neighbor)
-            adj[neighbor].add(name)
-    return adj
+    """Undirected foreign-key adjacency over all tables in the schema.
+
+    Delegates to :meth:`Schema.fk_adjacency`, which builds the graph in a single
+    pass over the FK edges. Composite foreign keys contribute exactly one
+    undirected edge between the two tables they join (not one per column).
+    """
+    return schema.fk_adjacency()
 
 
 def _shortest_path(
