@@ -89,6 +89,5 @@ class LLMClient(ABC):
     def cost(self, input_tokens: int, output_tokens: int) -> float:
         """Estimated USD cost for the given token counts."""
         return (
-            input_tokens * self.input_price_per_m
-            + output_tokens * self.output_price_per_m
+            input_tokens * self.input_price_per_m + output_tokens * self.output_price_per_m
         ) / 1_000_000

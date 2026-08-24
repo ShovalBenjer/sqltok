@@ -85,9 +85,7 @@ class TableRetriever:
 
         self._bm25: bm25s.BM25 | None = None
         if self._documents:
-            corpus_tokens = bm25s.tokenize(
-                self._documents, stopwords="en", show_progress=False
-            )
+            corpus_tokens = bm25s.tokenize(self._documents, stopwords="en", show_progress=False)
             # A degenerate corpus (e.g. all names tokenize to nothing) yields an
             # empty vocabulary, which bm25s cannot index. Fall back to no index;
             # rank() then returns zeros and breaks ties by name.
@@ -124,9 +122,7 @@ class TableRetriever:
                 self.embedding_weight * _minmax(emb_scores)
             )
 
-        order = sorted(
-            range(n), key=lambda i: (-float(fused[i]), self._names[i])
-        )
+        order = sorted(range(n), key=lambda i: (-float(fused[i]), self._names[i]))
         return [RankedTable(name=self._names[i], score=float(fused[i])) for i in order]
 
     def _bm25_scores(self, question: str) -> np.ndarray:

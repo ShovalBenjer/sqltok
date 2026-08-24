@@ -22,9 +22,7 @@ def build_client(provider: str, model: str, *, cache: DiskCache | None = None) -
         from .ollama_client import OllamaClient
 
         return OllamaClient(model, cache=cache)
-    raise ValueError(
-        f"unknown provider: {provider!r} (use mock|ollama|anthropic|openai)"
-    )
+    raise ValueError(f"unknown provider: {provider!r} (use mock|ollama|anthropic|openai)")
 
 
 __all__ = ["LLMClient", "LLMResponse", "DiskCache", "MockLLMClient", "build_client"]

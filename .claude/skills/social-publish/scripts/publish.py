@@ -29,8 +29,10 @@ from lint_post import lint  # noqa: E402
 
 def http_json(url: str, payload: dict, headers: dict, *, dry_run: bool) -> tuple[bool, str]:
     body = json.dumps(payload).encode("utf-8")
-    redacted = {k: ("***" if k.lower() in {"authorization", "api-key", "x-api-key"} else v)
-                for k, v in headers.items()}
+    redacted = {
+        k: ("***" if k.lower() in {"authorization", "api-key", "x-api-key"} else v)
+        for k, v in headers.items()
+    }
     if dry_run:
         return True, f"DRY RUN POST {url}\nheaders={redacted}\nbody={json.dumps(payload, indent=2)}"
     req = urllib.request.Request(
@@ -52,23 +54,39 @@ def post_bluesky(text: str, dry_run: bool) -> tuple[bool, str]:
         return False, "missing BLUESKY_HANDLE or BLUESKY_APP_PASSWORD"
     pds = os.environ.get("BLUESKY_PDS", "https://bsky.social")
     if dry_run:
-        return http_json(f"{pds}/xrpc/com.atproto.repo.createRecord",
-                         {"repo": handle, "collection": "app.bsky.feed.post",
-                          "record": {"$type": "app.bsky.feed.post", "text": text}},
-                         {"Authorization": "Bearer ***"}, dry_run=True)
-    ok, msg = http_json(f"{pds}/xrpc/com.atproto.server.createSession",
-                        {"identifier": handle, "password": password}, {}, dry_run=False)
+        return http_json(
+            f"{pds}/xrpc/com.atproto.repo.createRecord",
+            {
+                "repo": handle,
+                "collection": "app.bsky.feed.post",
+                "record": {"$type": "app.bsky.feed.post", "text": text},
+            },
+            {"Authorization": "Bearer ***"},
+            dry_run=True,
+        )
+    ok, msg = http_json(
+        f"{pds}/xrpc/com.atproto.server.createSession",
+        {"identifier": handle, "password": password},
+        {},
+        dry_run=False,
+    )
     if not ok:
         return False, f"login failed: {msg}"
     try:
         session = json.loads(msg.split(" ", 2)[2])
     except Exception:
         return False, f"could not parse session: {msg}"
-    record = {"$type": "app.bsky.feed.post", "text": text,
-              "createdAt": datetime.now(UTC).isoformat()}
-    return http_json(f"{pds}/xrpc/com.atproto.repo.createRecord",
-                     {"repo": session["did"], "collection": "app.bsky.feed.post", "record": record},
-                     {"Authorization": f"Bearer {session['accessJwt']}"}, dry_run=False)
+    record = {
+        "$type": "app.bsky.feed.post",
+        "text": text,
+        "createdAt": datetime.now(UTC).isoformat(),
+    }
+    return http_json(
+        f"{pds}/xrpc/com.atproto.repo.createRecord",
+        {"repo": session["did"], "collection": "app.bsky.feed.post", "record": record},
+        {"Authorization": f"Bearer {session['accessJwt']}"},
+        dry_run=False,
+    )
 
 
 def post_mastodon(text: str, dry_run: bool) -> tuple[bool, str]:
@@ -76,8 +94,12 @@ def post_mastodon(text: str, dry_run: bool) -> tuple[bool, str]:
     token = os.environ.get("MASTODON_TOKEN")
     if not base or not token:
         return False, "missing MASTODON_BASE_URL or MASTODON_TOKEN"
-    return http_json(f"{base.rstrip('/')}/api/v1/statuses", {"status": text},
-                     {"Authorization": f"Bearer {token}"}, dry_run=dry_run)
+    return http_json(
+        f"{base.rstrip('/')}/api/v1/statuses",
+        {"status": text},
+        {"Authorization": f"Bearer {token}"},
+        dry_run=dry_run,
+    )
 
 
 def post_devto(
@@ -93,8 +115,9 @@ def post_devto(
         article["canonical_url"] = canonical
     if tags:
         article["tags"] = [t.strip() for t in tags.split(",") if t.strip()][:4]
-    return http_json("https://dev.to/api/articles", {"article": article},
-                     {"api-key": key}, dry_run=dry_run)
+    return http_json(
+        "https://dev.to/api/articles", {"article": article}, {"api-key": key}, dry_run=dry_run
+    )
 
 
 def post_typefully(text: str, dry_run: bool) -> tuple[bool, str]:
@@ -102,16 +125,20 @@ def post_typefully(text: str, dry_run: bool) -> tuple[bool, str]:
     if not key:
         return False, "missing TYPEFULLY_API_KEY"
     # Typefully splits a thread on 4 consecutive newlines.
-    return http_json("https://api.typefully.com/v1/drafts/",
-                     {"content": text, "threadify": True},
-                     {"X-API-KEY": key}, dry_run=dry_run)
+    return http_json(
+        "https://api.typefully.com/v1/drafts/",
+        {"content": text, "threadify": True},
+        {"X-API-KEY": key},
+        dry_run=dry_run,
+    )
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Publish a post to a social platform.")
     p.add_argument("--file", help="path to the post text (otherwise read stdin)")
-    p.add_argument("--platform", required=True,
-                   choices=["bluesky", "mastodon", "devto", "typefully"])
+    p.add_argument(
+        "--platform", required=True, choices=["bluesky", "mastodon", "devto", "typefully"]
+    )
     p.add_argument("--confirm", action="store_true", help="actually send (default is dry run)")
     p.add_argument("--skip-lint", action="store_true", help="bypass the style linter (discouraged)")
     p.add_argument("--title", help="dev.to article title")

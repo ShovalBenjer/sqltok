@@ -110,9 +110,7 @@ def _sample(
     if sample_rows <= 0 or not columns:
         return None, {}
     try:
-        rows = conn.execute(
-            f'SELECT * FROM "{name}" LIMIT {int(sample_rows)}'
-        ).fetchall()
+        rows = conn.execute(f'SELECT * FROM "{name}" LIMIT {int(sample_rows)}').fetchall()
     except sqlite3.Error:
         return None, {}
     if not rows:

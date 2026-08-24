@@ -76,9 +76,7 @@ class BudgetPacker:
     def standalone_cost(self, name: str) -> int:
         """Token cost of a single table in isolation (a packing cost proxy)."""
         table = self.schema.tables[name]
-        return self.counter.count(
-            table.render_ddl(include_sample_row=self.include_sample_rows)
-        )
+        return self.counter.count(table.render_ddl(include_sample_row=self.include_sample_rows))
 
     def contains(self, name: str) -> bool:
         return name in self.sample_flags

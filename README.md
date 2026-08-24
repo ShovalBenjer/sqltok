@@ -49,9 +49,9 @@ from sqltok import SchemaBudgetManager
 mgr = SchemaBudgetManager.from_sqlite("northwind.sqlite")
 ctx = mgr.build_context("total order amount for customers in France", token_budget=2000)
 
-print(ctx.text)          # compact CREATE TABLE schema, at most 2000 tokens
-print(ctx.tables)        # ['customers', 'orders']
-print(ctx.token_count)   # measured, guaranteed at or below the budget
+print(ctx.text)  # compact CREATE TABLE schema, at most 2000 tokens
+print(ctx.tables)  # ['customers', 'orders']
+print(ctx.token_count)  # measured, guaranteed at or below the budget
 ```
 
 Measured result: across all 500 BIRD mini-dev questions, at a 2000-token budget SQLTok keeps every gold-query table on 97 percent of questions while cutting total prompt input by 17 percent, deterministically and with no model required. At a tighter 1000-token budget it cuts total input by 36 percent at 92 percent full table recall. See [Benchmark](#benchmark).
@@ -89,8 +89,8 @@ mgr = SchemaBudgetManager.from_sqlite("path/to/db.sqlite")
 
 ctx = mgr.build_context(
     question="What was the total order amount for customers in France?",
-    token_budget=2000,          # hard ceiling on schema-context tokens
-    include_sample_rows=True,   # one example row per included table
+    token_budget=2000,  # hard ceiling on schema-context tokens
+    include_sample_rows=True,  # one example row per included table
 )
 
 prompt = f"""Database schema:
@@ -99,10 +99,10 @@ prompt = f"""Database schema:
 Question: What was the total order amount for customers in France?
 SQLite query:"""
 
-print(ctx.tables)         # ['customers', 'orders']
-print(ctx.token_count)    # measured with tiktoken, at or below the budget
+print(ctx.tables)  # ['customers', 'orders']
+print(ctx.token_count)  # measured with tiktoken, at or below the budget
 print(ctx.bridge_tables)  # foreign-key bridges added to keep the schema joinable
-print(ctx.covered_weight) # fraction of grounded question mentions covered
+print(ctx.covered_weight)  # fraction of grounded question mentions covered
 ```
 
 To use the BM25 baseline selector explicitly:
