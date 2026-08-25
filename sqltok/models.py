@@ -103,17 +103,13 @@ class Table:
         for fk in self.foreign_keys:
             local = ", ".join(fk.local_cols)
             ref = ", ".join(fk.ref_cols)
-            body.append(
-                f"  FOREIGN KEY ({local}) REFERENCES {fk.ref_table}({ref})"
-            )
+            body.append(f"  FOREIGN KEY ({local}) REFERENCES {fk.ref_table}({ref})")
 
         lines.append(",\n".join(body))
         lines.append(");")
 
         if include_sample_row and self.sample_row is not None:
-            rendered = ", ".join(
-                f"{k}={_format_value(v)}" for k, v in self.sample_row.items()
-            )
+            rendered = ", ".join(f"{k}={_format_value(v)}" for k, v in self.sample_row.items())
             lines.append(f"-- example row: {rendered}")
 
         return "\n".join(lines)
@@ -188,8 +184,7 @@ class Schema:
     def render_full_ddl(self, *, include_sample_rows: bool = False) -> str:
         """Render every table's DDL, joined by blank lines (baseline dump)."""
         return "\n\n".join(
-            t.render_ddl(include_sample_row=include_sample_rows)
-            for t in self.tables.values()
+            t.render_ddl(include_sample_row=include_sample_rows) for t in self.tables.values()
         )
 
 

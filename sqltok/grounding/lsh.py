@@ -79,7 +79,4 @@ class LSHIndex:
         return results
 
     def _band_keys(self, signature: np.ndarray) -> list[bytes]:
-        return [
-            signature[b * self.rows : (b + 1) * self.rows].tobytes()
-            for b in range(self.bands)
-        ]
+        return [signature[b * self.rows : (b + 1) * self.rows].tobytes() for b in range(self.bands)]

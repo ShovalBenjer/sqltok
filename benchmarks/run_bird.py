@@ -212,7 +212,7 @@ def run(args: argparse.Namespace) -> None:
         print(f"[{q.question_id}] {q.db_id}: done ({len(arms)} arms)", file=sys.stderr)
 
     write_outputs(results, out_dir, args)
-    print(f"\nWrote results to {out_dir/'results.md'}", file=sys.stderr)
+    print(f"\nWrote results to {out_dir / 'results.md'}", file=sys.stderr)
 
 
 def write_outputs(results: dict[str, ArmResult], out_dir: Path, args: argparse.Namespace) -> None:
@@ -262,9 +262,7 @@ def write_outputs(results: dict[str, ArmResult], out_dir: Path, args: argparse.N
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the SQLTok BIRD mini-dev benchmark.")
-    p.add_argument(
-        "--provider", default="mock", choices=["mock", "ollama", "anthropic", "openai"]
-    )
+    p.add_argument("--provider", default="mock", choices=["mock", "ollama", "anthropic", "openai"])
     p.add_argument("--model", default="mock-1", help="Model name for the chosen provider.")
     p.add_argument("--data-dir", default="benchmarks/data")
     p.add_argument("--questions", default=None, help="Override questions JSON path.")
@@ -272,7 +270,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--out-dir", default="benchmarks/results")
     p.add_argument("--cache-dir", default="benchmarks/.llm_cache")
     p.add_argument(
-        "--budgets", type=int, nargs="+", default=[1000, 2000, 4000],
+        "--budgets",
+        type=int,
+        nargs="+",
+        default=[1000, 2000, 4000],
         help="Token budgets for the sqltok arm.",
     )
     p.add_argument("--no-baseline", action="store_true", help="Skip the full-dump arm.")

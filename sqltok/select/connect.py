@@ -16,9 +16,7 @@ from ..models import Schema
 from .base import BudgetPacker
 
 
-def expand_fk_neighbors(
-    packer: BudgetPacker, seeds: list[str], *, min_links: int = 1
-) -> list[str]:
+def expand_fk_neighbors(packer: BudgetPacker, seeds: list[str], *, min_links: int = 1) -> list[str]:
     """Spend remaining budget on foreign-key neighbours of the seed tables.
 
     Gold queries almost always join a relevant table to one of its foreign-key

@@ -16,6 +16,24 @@
 
 </div>
 
+Topics: Text-to-SQL, NL2SQL, LLM token optimization, prompt compression, schema linking, schema retrieval, BIRD benchmark, tiktoken, submodular optimization, MinHash, LSH.
+
+## Contents
+
+1. [Overview](#overview)
+2. [Why SQLTok](#why-sqltok)
+3. [Installation](#installation)
+4. [Quickstart](#quickstart)
+5. [How it works](#how-it-works)
+6. [Architecture](#architecture)
+7. [Benchmark](#benchmark)
+8. [API](#api)
+9. [Roadmap](#roadmap)
+10. [References](#references)
+11. [Citation](#citation)
+12. [Contributing](#contributing)
+13. [Glossary](#glossary)
+14. [License](#license)
 ## Installation
 
 ```bash
@@ -38,13 +56,22 @@ from sqltok import SchemaBudgetManager
 mgr = SchemaBudgetManager.from_sqlite("path/to/db.sqlite")
 ctx = mgr.build_context(
     question="What was the total order amount for customers in France?",
-    token_budget=2000,
-    include_sample_rows=True,
+ctx = mgr.build_context(
+    question="What was the total order amount for customers in France?",
+    token_budget=2000,  # hard ceiling on schema-context tokens
+    include_sample_rows=True,  # one example row per included table
 )
 
-print(ctx.text)          # compact CREATE TABLE schema, at most 2000 tokens
-print(ctx.tables)        # ['customers', 'orders']
-print(ctx.token_count)   # measured, guaranteed at or below the budget
+prompt = f"""Database schema:
+{ctx.text}
+
+Question: What was the total order amount for customers in France?
+SQLite query:"""
+
+print(ctx.tables)  # ['customers', 'orders']
+print(ctx.token_count)  # measured with tiktoken, at or below the budget
+print(ctx.bridge_tables)  # foreign-key bridges added to keep the schema joinable
+print(ctx.covered_weight)  # fraction of grounded question mentions covered
 ```
 
 ## Features
