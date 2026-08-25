@@ -68,7 +68,7 @@ def test_minhash_estimate_is_monotone_in_true_jaccard() -> None:
 
 def test_lsh_retrieves_similar_items() -> None:
     index = LSHIndex(num_perm=64, bands=32, rows=2, seed=1)
-    index.add({str(x) for x in range(50)}, "almost_query")   # ~98% overlap
+    index.add({str(x) for x in range(50)}, "almost_query")  # ~98% overlap
     index.add({str(x) for x in range(200, 260)}, "unrelated")
     query = {str(x) for x in range(1, 50)}
     payloads = [c.payload for c in index.query(query)]

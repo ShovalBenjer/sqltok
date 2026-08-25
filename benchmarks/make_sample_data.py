@@ -54,21 +54,41 @@ INSERT INTO students VALUES (1,1,11,88.5),(2,1,12,91.0),(3,2,5,75.0);
 """
 
 QUESTIONS = [
-    {"question_id": 0, "db_id": "retail", "evidence": "revenue refers to SUM(amount)",
-     "question": "What is the total order amount for customers in France?",
-     "SQL": "SELECT SUM(o.amount) FROM orders o JOIN customers c ON o.customer_id=c.id WHERE c.country='France'"},
-    {"question_id": 1, "db_id": "retail", "evidence": "",
-     "question": "How many widgets were ordered in total?",
-     "SQL": "SELECT SUM(li.qty) FROM line_items li JOIN products p ON li.product_id=p.id WHERE p.category='widgets'"},
-    {"question_id": 2, "db_id": "retail", "evidence": "",
-     "question": "List the company names of suppliers from Germany.",
-     "SQL": "SELECT company FROM suppliers WHERE nation='Germany'"},
-    {"question_id": 3, "db_id": "school", "evidence": "",
-     "question": "What is the average score of students in Maple High?",
-     "SQL": "SELECT AVG(s.score) FROM students s JOIN schools sc ON s.school_id=sc.id WHERE sc.name='Maple High'"},
-    {"question_id": 4, "db_id": "school", "evidence": "",
-     "question": "How many schools are in Alameda county?",
-     "SQL": "SELECT COUNT(*) FROM schools WHERE county='Alameda'"},
+    {
+        "question_id": 0,
+        "db_id": "retail",
+        "evidence": "revenue refers to SUM(amount)",
+        "question": "What is the total order amount for customers in France?",
+        "SQL": "SELECT SUM(o.amount) FROM orders o JOIN customers c ON o.customer_id=c.id WHERE c.country='France'",
+    },
+    {
+        "question_id": 1,
+        "db_id": "retail",
+        "evidence": "",
+        "question": "How many widgets were ordered in total?",
+        "SQL": "SELECT SUM(li.qty) FROM line_items li JOIN products p ON li.product_id=p.id WHERE p.category='widgets'",
+    },
+    {
+        "question_id": 2,
+        "db_id": "retail",
+        "evidence": "",
+        "question": "List the company names of suppliers from Germany.",
+        "SQL": "SELECT company FROM suppliers WHERE nation='Germany'",
+    },
+    {
+        "question_id": 3,
+        "db_id": "school",
+        "evidence": "",
+        "question": "What is the average score of students in Maple High?",
+        "SQL": "SELECT AVG(s.score) FROM students s JOIN schools sc ON s.school_id=sc.id WHERE sc.name='Maple High'",
+    },
+    {
+        "question_id": 4,
+        "db_id": "school",
+        "evidence": "",
+        "question": "How many schools are in Alameda county?",
+        "SQL": "SELECT COUNT(*) FROM schools WHERE county='Alameda'",
+    },
 ]
 
 
