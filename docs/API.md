@@ -110,8 +110,8 @@ ctx = mgr.build_context(
     token_budget=2000,
     include_sample_rows=True,
 )
-print(ctx.text)       # compact schema string
-print(ctx.tables)     # selected table names
+print(ctx.text)  # compact schema string
+print(ctx.tables)  # selected table names
 print(ctx.token_count)  # measured, <= budget
 ```
 
@@ -354,8 +354,9 @@ To implement a custom selector, satisfy this protocol:
 class MySelector:
     name = "my_selector"
 
-    def select(self, question, *, token_budget, counter, include_sample_rows=True, fk_expand=True):
-        ...
+    def select(
+        self, question, *, token_budget, counter, include_sample_rows=True, fk_expand=True
+    ): ...
 ```
 
 ---
@@ -493,7 +494,7 @@ Ground `question` and return its coverage matrix and weights.
 ```python
 grounding = SchemaGrounding(schema)
 gq = grounding.ground("total orders for customers in France")
-print(gq.mentions)   # ['France', 'customers', 'orders', ...]
+print(gq.mentions)  # ['France', 'customers', 'orders', ...]
 print(gq.cover.shape)  # (num_tables, num_mentions)
 ```
 

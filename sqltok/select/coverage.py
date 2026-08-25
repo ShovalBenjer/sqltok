@@ -188,8 +188,6 @@ class CoverageSelector:
 
     def _fallback_pack(self, packer: BudgetPacker) -> None:
         """No grounding signal: pack the smallest tables first to fill budget."""
-        by_cost = sorted(
-            packer.schema.table_names(), key=lambda n: (packer.standalone_cost(n), n)
-        )
+        by_cost = sorted(packer.schema.table_names(), key=lambda n: (packer.standalone_cost(n), n))
         for name in by_cost:
             packer.try_add(name)

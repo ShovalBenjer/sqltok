@@ -23,9 +23,7 @@ from sqltok import (
 from sqltok.tokenizer import TokenCounter
 
 _ident = st.text(alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=12)
-_question = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyz0123456789 ", min_size=0, max_size=48
-)
+_question = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789 ", min_size=0, max_size=48)
 
 
 @st.composite
@@ -35,15 +33,11 @@ def schemas(draw: st.DrawFn) -> Schema:
     names = draw(st.lists(_ident, min_size=n, max_size=n, unique=True))
     tables: dict[str, Table] = {}
     for name in names:
-        col_names = draw(
-            st.lists(_ident, min_size=1, max_size=6, unique=True)
-        )
+        col_names = draw(st.lists(_ident, min_size=1, max_size=6, unique=True))
         columns = []
         for cn in col_names:
             values = draw(st.lists(st.text(max_size=12), max_size=3))
-            columns.append(
-                Column(name=cn, type="TEXT", sample_values=[v for v in values if v])
-            )
+            columns.append(Column(name=cn, type="TEXT", sample_values=[v for v in values if v]))
         columns[0].primary_key = True
         tables[name] = Table(name=name, columns=columns)
 
@@ -54,9 +48,9 @@ def schemas(draw: st.DrawFn) -> Schema:
             if ref != name:
                 tables[name].foreign_keys.append(
                     ForeignKey(
-                        column=tables[name].columns[0].name,
+                        local_cols=[tables[name].columns[0].name],
                         ref_table=ref,
-                        ref_column=tables[ref].columns[0].name,
+                        ref_cols=[tables[ref].columns[0].name],
                     )
                 )
     return Schema(tables=tables)
@@ -77,9 +71,7 @@ def test_coverage_budget_never_exceeded(schema: Schema, question: str, budget: i
 
 @settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(schema=schemas(), question=_question, budget=st.integers(min_value=1, max_value=3000))
-def test_relevance_greedy_budget_never_exceeded(
-    schema: Schema, question: str, budget: int
-) -> None:
+def test_relevance_greedy_budget_never_exceeded(schema: Schema, question: str, budget: int) -> None:
     selector = RelevanceGreedySelector(schema)
     ctx = selector.select(question, token_budget=budget, counter=TokenCounter())
     assert ctx.token_count <= budget

@@ -137,5 +137,5 @@ class SchemaGrounding:
         n_tables = cover.shape[0]
         df = np.maximum((cover >= _MATCH_THRESHOLD).sum(axis=0), 1)
         # Smooth idf in [>0, ~log(n+1)], normalised so weights are comparable.
-        weights = np.log1p(n_tables / df).astype(np.float32)
+        weights: np.ndarray = np.log1p(n_tables / df).astype(np.float32)
         return weights

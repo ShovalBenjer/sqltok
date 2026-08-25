@@ -36,11 +36,16 @@ class Column:
 
 @dataclass(slots=True)
 class ForeignKey:
-    """A foreign-key edge from ``column`` to ``ref_table.ref_column``."""
+    """A foreign-key edge from ``local_cols`` to ``ref_table(ref_cols)``.
 
-    column: str
+    Composite keys are first-class: ``local_cols`` and ``ref_cols`` are ordered
+    parallel lists (one entry per column in the key), so a multi-column foreign
+    key is represented faithfully instead of being truncated to its first column.
+    """
+
+    local_cols: list[str]
     ref_table: str
-    ref_column: str
+    ref_cols: list[str]
 
 
 @dataclass(slots=True)
@@ -96,17 +101,15 @@ class Table:
             body.append(line)
 
         for fk in self.foreign_keys:
-            body.append(
-                f"  FOREIGN KEY ({fk.column}) REFERENCES {fk.ref_table}({fk.ref_column})"
-            )
+            local = ", ".join(fk.local_cols)
+            ref = ", ".join(fk.ref_cols)
+            body.append(f"  FOREIGN KEY ({local}) REFERENCES {fk.ref_table}({ref})")
 
         lines.append(",\n".join(body))
         lines.append(");")
 
         if include_sample_row and self.sample_row is not None:
-            rendered = ", ".join(
-                f"{k}={_format_value(v)}" for k, v in self.sample_row.items()
-            )
+            rendered = ", ".join(f"{k}={_format_value(v)}" for k, v in self.sample_row.items())
             lines.append(f"-- example row: {rendered}")
 
         return "\n".join(lines)
@@ -131,33 +134,57 @@ class Schema:
         """Return a table by name, or ``None`` if absent."""
         return self.tables.get(name)
 
+    def fk_edges(self) -> list[tuple[str, ForeignKey]]:
+        """Return every resolvable foreign-key edge as ``(source_table, fk)``.
+
+        Only edges whose ``ref_table`` is present in this schema are returned, and
+        self-referencing edges are skipped since they add no join connectivity.
+        A composite foreign key is a *single* edge here: multi-column keys join
+        two tables once, not once per column.
+        """
+        edges: list[tuple[str, ForeignKey]] = []
+        for source, table in self.tables.items():
+            for fk in table.foreign_keys:
+                if fk.ref_table == source or fk.ref_table not in self.tables:
+                    continue
+                edges.append((source, fk))
+        return edges
+
+    def fk_adjacency(self) -> dict[str, set[str]]:
+        """Return the undirected foreign-key adjacency map for the whole schema.
+
+        Built in a single pass over :meth:`fk_edges`, so composite foreign keys
+        contribute exactly one undirected edge between the two tables they join.
+        """
+        adj: dict[str, set[str]] = {name: set() for name in self.tables}
+        for source, fk in self.fk_edges():
+            adj[source].add(fk.ref_table)
+            adj[fk.ref_table].add(source)
+        return adj
+
     def fk_neighbors(self, name: str) -> list[str]:
         """Return tables directly connected to ``name`` by a foreign key.
 
         This includes both outgoing edges (``name`` references another table) and
-        incoming edges (another table references ``name``). The result is sorted
-        for deterministic ordering.
+        incoming edges (another table references ``name``). A composite foreign
+        key yields the referenced table once, not once per column. The result is
+        sorted for deterministic ordering.
         """
+        if name not in self.tables:
+            return []
         neighbors: set[str] = set()
-        table = self.tables.get(name)
-        if table is not None:
-            for fk in table.foreign_keys:
-                if fk.ref_table in self.tables:
-                    neighbors.add(fk.ref_table)
-        for other_name, other in self.tables.items():
-            if other_name == name:
-                continue
-            for fk in other.foreign_keys:
-                if fk.ref_table == name:
-                    neighbors.add(other_name)
+        for source, fk in self.fk_edges():
+            if source == name:
+                neighbors.add(fk.ref_table)
+            elif fk.ref_table == name:
+                neighbors.add(source)
         neighbors.discard(name)
         return sorted(neighbors)
 
     def render_full_ddl(self, *, include_sample_rows: bool = False) -> str:
         """Render every table's DDL, joined by blank lines (baseline dump)."""
         return "\n\n".join(
-            t.render_ddl(include_sample_row=include_sample_rows)
-            for t in self.tables.values()
+            t.render_ddl(include_sample_row=include_sample_rows) for t in self.tables.values()
         )
 
 

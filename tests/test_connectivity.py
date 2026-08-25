@@ -23,9 +23,7 @@ def test_steiner_bridge_connects_disjoint_tables() -> None:
     """
     schema = parse_ddl(ddl)
     counter = TokenCounter()
-    packer = BudgetPacker(
-        schema, token_budget=4000, counter=counter, include_sample_rows=False
-    )
+    packer = BudgetPacker(schema, token_budget=4000, counter=counter, include_sample_rows=False)
     packer.try_add("products")
     packer.try_add("orders")
     bridges = connect_selection(packer)
@@ -48,9 +46,7 @@ def test_steiner_respects_budget() -> None:
     """
     schema = parse_ddl(ddl)
     counter = TokenCounter()
-    packer = BudgetPacker(
-        schema, token_budget=4000, counter=counter, include_sample_rows=False
-    )
+    packer = BudgetPacker(schema, token_budget=4000, counter=counter, include_sample_rows=False)
     packer.try_add("products")
     packer.try_add("orders")
     budget = packer.token_count() + 2  # no room for the bridge table

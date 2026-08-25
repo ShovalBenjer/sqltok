@@ -80,12 +80,16 @@ def main() -> None:
             agg[b]["ntab"].append(len(sel))
 
     print(f"scored questions: {scored}/{len(questions)}  databases: {len(mgrs)}")
-    print(f"sample-value null rate: {null_cols}/{total_cols} = {100*null_cols/total_cols:.1f}%")
-    print(f"\n{'budget':>7} | {'recall':>7} | {'full-recall':>11} | {'precision':>9} | {'avg tables':>10}")
+    print(f"sample-value null rate: {null_cols}/{total_cols} = {100 * null_cols / total_cols:.1f}%")
+    print(
+        f"\n{'budget':>7} | {'recall':>7} | {'full-recall':>11} | {'precision':>9} | {'avg tables':>10}"
+    )
     for b in args.budgets:
         r = agg[b]
-        print(f"{b:>7} | {100*st.mean(r['recall']):>6.1f}% | {100*r['full']/scored:>10.1f}% | "
-              f"{100*st.mean(r['prec']):>8.1f}% | {st.mean(r['ntab']):>10.2f}")
+        print(
+            f"{b:>7} | {100 * st.mean(r['recall']):>6.1f}% | {100 * r['full'] / scored:>10.1f}% | "
+            f"{100 * st.mean(r['prec']):>8.1f}% | {st.mean(r['ntab']):>10.2f}"
+        )
 
 
 if __name__ == "__main__":

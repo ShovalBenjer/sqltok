@@ -177,7 +177,7 @@ manager uses:
 
 ```python
 mgr = SchemaBudgetManager.from_sqlite("db.sqlite")
-print(mgr.count_tokens(ctx.text))   # same as ctx.token_count
+print(mgr.count_tokens(ctx.text))  # same as ctx.token_count
 ```
 
 ### Inspecting the baseline dump
