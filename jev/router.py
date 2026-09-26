@@ -8,6 +8,7 @@ Usage:
     r = route("summarize this log")
     print(r.name, r.model, r.base_url)
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -39,12 +40,26 @@ def _ollama_alive(url: str, timeout: float = 1.5) -> bool:
 
 def default_routes() -> list[Route]:
     return [
-        Route("ollama-local", "ollama",
-              os.getenv("JEV_LOCAL_MODEL", "qwen2.5:7b"),
-              "http://localhost:11434", None, 0.0, 400, 32768),
-        Route("github-models", "github-models",
-              os.getenv("JEV_GH_MODEL", "gpt-4o-mini"),
-              "https://models.github.ai/inference", "JEV_MODEL_TOKEN", 0.0, 1200, 128000),
+        Route(
+            "ollama-local",
+            "ollama",
+            os.getenv("JEV_LOCAL_MODEL", "qwen2.5:7b"),
+            "http://localhost:11434",
+            None,
+            0.0,
+            400,
+            32768,
+        ),
+        Route(
+            "github-models",
+            "github-models",
+            os.getenv("JEV_GH_MODEL", "gpt-4o-mini"),
+            "https://models.github.ai/inference",
+            "JEV_MODEL_TOKEN",
+            0.0,
+            1200,
+            128000,
+        ),
     ]
 
 
@@ -52,8 +67,16 @@ def estimate_complexity(task: str) -> float:
     """0..1 heuristic: short/simple tasks stay local, hard ones escalate."""
     t = task.lower()
     score = min(len(task) / 4000, 1.0) * 0.4
-    hard = ("prove", "security", "architecture", "refactor", "distributed",
-            "concurrency", "formal", "cryptograph")
+    hard = (
+        "prove",
+        "security",
+        "architecture",
+        "refactor",
+        "distributed",
+        "concurrency",
+        "formal",
+        "cryptograph",
+    )
     score += 0.15 * sum(1 for m in hard if m in t)
     return min(score, 1.0)
 

@@ -73,6 +73,6 @@ ignore_missing_imports = true
 exclude = ["benchmarks/"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "jev"]
 addopts = "-q"
 pythonpath = ["."]
