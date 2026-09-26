@@ -33,3 +33,6 @@ site/.quarto/
 .coverage.*
 htmlcov/
 coverage.xml
+
+# jev: local router telemetry (append-only decisions log, regenerated at runtime)
+jev/decisions.jsonl
