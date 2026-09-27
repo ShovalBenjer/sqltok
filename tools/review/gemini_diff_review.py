@@ -17,6 +17,7 @@ Usage:
   gemini_diff_review.py review --diff-file pr.diff [--json-out findings.json] [--soft-fail]
   gemini_diff_review.py selftest
 """
+
 from __future__ import annotations
 
 import argparse
@@ -136,16 +137,24 @@ def emit_github_annotations(findings: list, stream=None) -> int:
     for sev, level in levels:
         rows = [f for f in findings if str(f.get("severity", "")).lower() == sev]
         for f in rows[:ANNOTATION_CAP]:
-            print("::{} file={},line={},title={}::{}".format(
-                level,
-                _wc_escape(str(f.get("file", "")), True),
-                str(f.get("line", 0)),
-                _wc_escape("gemini/" + str(f.get("check", "review")), True),
-                _wc_escape(str(f.get("why", "")), False)), file=out)
+            print(
+                "::{} file={},line={},title={}::{}".format(
+                    level,
+                    _wc_escape(str(f.get("file", "")), True),
+                    str(f.get("line", 0)),
+                    _wc_escape("gemini/" + str(f.get("check", "review")), True),
+                    _wc_escape(str(f.get("why", "")), False),
+                ),
+                file=out,
+            )
             written += 1
         if len(rows) > ANNOTATION_CAP:
-            print(f"::notice::{len(rows) - ANNOTATION_CAP} {sev} finding(s) not annotated; GitHub renders {ANNOTATION_CAP} per "
-                  "level per step.", file=out)
+            over = len(rows) - ANNOTATION_CAP
+            print(
+                f"::notice::{over} {sev} finding(s) not annotated; "
+                f"GitHub renders {ANNOTATION_CAP} per level per step.",
+                file=out,
+            )
     return written
 
 
@@ -196,13 +205,15 @@ def parse_response(payload: dict) -> dict:
             line = int(f.get("line", 0))
         except (TypeError, ValueError):
             line = 0
-        clean.append({
-            "severity": sev,
-            "file": str(f.get("file", "")),
-            "line": line,
-            "check": "gemini/" + str(f.get("check", "review")),
-            "why": str(f.get("why", "")),
-        })
+        clean.append(
+            {
+                "severity": sev,
+                "file": str(f.get("file", "")),
+                "line": line,
+                "check": "gemini/" + str(f.get("check", "review")),
+                "why": str(f.get("why", "")),
+            }
+        )
     return {"findings": clean, "summary": str(value.get("summary", ""))}
 
 
@@ -212,12 +223,14 @@ def cmd_review(args: argparse.Namespace) -> int:
         print("gemini-review: empty diff, nothing to review")
         return 0
     if not looks_like_diff(diff):
-        print("gemini-review: input is not a unified diff; refusing to send it "
-              "(see the data boundary in this file's docstring)", file=sys.stderr)
+        print(
+            "gemini-review: input is not a unified diff; refusing to send it "
+            "(see the data boundary in this file's docstring)",
+            file=sys.stderr,
+        )
         return 2
     if len(diff.encode("utf-8")) > MAX_DIFF_BYTES:
-        print(f"gemini-review: diff exceeds {MAX_DIFF_BYTES} bytes; reviewing the first slice "
-              "only")
+        print(f"gemini-review: diff exceeds {MAX_DIFF_BYTES} bytes; reviewing the first slice only")
         diff = diff.encode("utf-8")[:MAX_DIFF_BYTES].decode("utf-8", "ignore")
 
     try:
@@ -232,10 +245,13 @@ def cmd_review(args: argparse.Namespace) -> int:
     findings = result["findings"]
     written = emit_github_annotations(findings)
     print(f"gemini-review: {len(findings)} finding(s), {written} annotated")
-    print("summary: {}".format(result["summary"]))
+    # Workflow-command-safe: the summary is model-controlled text. A raw
+    # newline inside it would end this log line and let a forged `::command::`
+    # land on the next one; _wc_escape keeps it to a single line behind the
+    # "summary: " prefix, so GitHub can never parse it as a workflow command.
+    print("summary: {}".format(_wc_escape(str(result["summary"]), False)))
     if args.json_out:
-        Path(args.json_out).write_text(
-            json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        Path(args.json_out).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return 0
 
 
@@ -248,14 +264,46 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     if not looks_like_diff("diff --git a/x.py b/x.py\n+pass\n"):
         failures.append("looks_like_diff rejected a real diff")
 
-    good = {"candidates": [{"content": {"parts": [{"text": json.dumps({
-        "summary": "s",
-        "findings": [
-            {"severity": "high", "file": "a.py", "line": 3, "check": "c", "why": "w"},
-            {"severity": "bogus", "file": "b.py", "line": 1, "check": "c", "why": "w"},
-            {"severity": "low", "file": "c.py", "line": "notanint", "check": "c", "why": "w"},
-        ],
-    })}]}}]}
+    good = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": json.dumps(
+                                {
+                                    "summary": "s",
+                                    "findings": [
+                                        {
+                                            "severity": "high",
+                                            "file": "a.py",
+                                            "line": 3,
+                                            "check": "c",
+                                            "why": "w",
+                                        },
+                                        {
+                                            "severity": "bogus",
+                                            "file": "b.py",
+                                            "line": 1,
+                                            "check": "c",
+                                            "why": "w",
+                                        },
+                                        {
+                                            "severity": "low",
+                                            "file": "c.py",
+                                            "line": "notanint",
+                                            "check": "c",
+                                            "why": "w",
+                                        },
+                                    ],
+                                }
+                            )
+                        }
+                    ]
+                }
+            }
+        ]
+    }
     parsed = parse_response(good)
     if len(parsed["findings"]) != 2:
         failures.append("parse_response kept a finding with an invalid severity")
@@ -264,9 +312,10 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     if not parsed["findings"][0]["check"].startswith("gemini/"):
         failures.append("parse_response did not namespace the check id")
 
-    for bad, label in (({}, "empty payload"),
-                       ({"candidates": [{"content": {"parts": [{"text": "nope"}]}}]},
-                        "non-JSON text")):
+    for bad, label in (
+        ({}, "empty payload"),
+        ({"candidates": [{"content": {"parts": [{"text": "nope"}]}}]}, "non-JSON text"),
+    ):
         try:
             parse_response(bad)
             failures.append("parse_response accepted " + label)
@@ -297,8 +346,9 @@ def main(argv: list[str]) -> int:
     rev = sub.add_parser("review", help="review a unified diff")
     rev.add_argument("--diff-file", required=True)
     rev.add_argument("--json-out")
-    rev.add_argument("--soft-fail", action="store_true",
-                     help="exit 0 even when the actor is unreachable")
+    rev.add_argument(
+        "--soft-fail", action="store_true", help="exit 0 even when the actor is unreachable"
+    )
     rev.set_defaults(func=cmd_review)
 
     st = sub.add_parser("selftest", help="offline checks, no API call")
