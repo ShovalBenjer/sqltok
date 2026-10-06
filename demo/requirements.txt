@@ -1,2 +1,2 @@
-streamlit>=1.64.0
+streamlit>=1.65.0
 git+https://github.com/ShovalBenjer/sqltok.git
