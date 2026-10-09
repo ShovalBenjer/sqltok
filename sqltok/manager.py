@@ -117,9 +117,11 @@ class SchemaBudgetManager:
                 built context is evaluated against the declared paths; if one
                 fires, the returned context carries
                 ``decision_state=ESCALATED`` and its
-                :class:`~sqltok.escalation.EscalatedCase` instead of a silently
-                degraded selection. ``None`` (default) preserves the legacy
-                behaviour: the context is always ``SERVED``.
+                :class:`~sqltok.escalation.EscalatedCase`. The built selection
+                stays attached for the arbiter's inspection — consumers must
+                branch on ``decision_state`` rather than reading the tables
+                blindly. ``None`` (default) preserves the legacy behaviour:
+                the context is always ``SERVED``.
 
         Returns:
             A :class:`SchemaContext` with the rendered text, selected tables,

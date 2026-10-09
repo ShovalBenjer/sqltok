@@ -154,6 +154,8 @@ class EscalationPolicy:
             raise ValueError("escalation policy must declare at least one path")
         if len(set(self.paths)) != len(self.paths):
             raise ValueError("escalation policy declares a path twice")
+        if not all(isinstance(p, EscalationPath) for p in self.paths):
+            raise ValueError("paths must be EscalationPath members, not plain strings")
         if not 0.0 <= self.coverage_floor <= 1.0:
             raise ValueError("coverage_floor must lie in [0.0, 1.0]")
         if self.ambiguity_epsilon < 0.0:
@@ -190,15 +192,15 @@ def _triggered(
     path: EscalationPath, evidence: EscalationEvidence, policy: EscalationPolicy
 ) -> bool:
     """Whether one declared path's trigger condition holds on the evidence."""
-    if path is EscalationPath.NO_GROUNDING:
+    if path == EscalationPath.NO_GROUNDING:
         return evidence.mention_count == 0
-    if path is EscalationPath.BUDGET_EXHAUSTED:
+    if path == EscalationPath.BUDGET_EXHAUSTED:
         return evidence.tables_selected == 0
-    if path is EscalationPath.LOW_COVERAGE:
+    if path == EscalationPath.LOW_COVERAGE:
         return (
             evidence.covered_weight is not None and evidence.covered_weight < policy.coverage_floor
         )
-    if path is EscalationPath.AMBIGUOUS_GROUNDING:
+    if path == EscalationPath.AMBIGUOUS_GROUNDING:
         scores = evidence.top_scores[: policy.ambiguity_top_k]
         return (
             len(scores) >= 2
@@ -236,6 +238,13 @@ class ScoredDecision:
     state: DecisionState
     path: EscalationPath | None
     score: float | None
+
+    def __post_init__(self) -> None:
+        if (self.path is not None) != (self.state == DecisionState.ESCALATED):
+            raise ValueError(
+                "ScoredDecision consistency: an ESCALATED decision must name "
+                "its path, and a SERVED decision must not"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,7 +312,7 @@ def summarize(decisions: Iterable[ScoredDecision]) -> EscalationReport:
     score_total = 0.0
     scored_served = 0
     for decision in decisions:
-        if decision.state is DecisionState.ESCALATED:
+        if decision.state == DecisionState.ESCALATED:
             escalated += 1
             if decision.path is not None:
                 per_path[decision.path] = per_path.get(decision.path, 0) + 1

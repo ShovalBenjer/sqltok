@@ -92,6 +92,12 @@ def test_policy_rejects_malformed_declarations(kwargs: object) -> None:
         EscalationPolicy(**kwargs)  # type: ignore[arg-type]
 
 
+def test_policy_rejects_string_paths() -> None:
+    """Plain strings are not declarations: only EscalationPath members pass."""
+    with pytest.raises(ValueError):
+        EscalationPolicy(paths=("no_grounding",))  # type: ignore[arg-type]
+
+
 def test_unknown_coverage_never_trips_low_coverage() -> None:
     """LOW_COVERAGE needs a reported coverage; unknown coverage is not zero."""
     policy = EscalationPolicy(paths=(EscalationPath.LOW_COVERAGE,))
@@ -134,6 +140,16 @@ def test_summarize_empty_is_total() -> None:
     assert report.total == 0
     assert report.escalation_rate == 0.0
     assert report.mean_score_served is None
+
+
+def test_scored_decision_rejects_mismatched_pairs() -> None:
+    """ESCALATED needs a path, SERVED must not name one — wired, not hygiene."""
+    with pytest.raises(ValueError):
+        ScoredDecision(DecisionState.ESCALATED, None, 0.5)
+    with pytest.raises(ValueError):
+        ScoredDecision(DecisionState.SERVED, EscalationPath.NO_GROUNDING, 0.5)
+    ok = ScoredDecision(DecisionState.ESCALATED, EscalationPath.NO_GROUNDING, 0.5)
+    assert ok.path is EscalationPath.NO_GROUNDING
 
 
 # -- 3. escalation is normal operation, never a failure -----------------------
@@ -298,6 +314,27 @@ def test_escalated_context_still_respects_budget(sample_ddl: str) -> None:
         escalation_policy=policy,
     )
     assert ctx.token_count <= 50
+
+
+def test_inert_policy_on_non_grounding_selector(sample_ddl: str) -> None:
+    """Unknown evidence never escalates: a non-grounding selector's policy is inert.
+
+    The greedy selector reports no grounding (mention_count=-1, coverage None,
+    no scores), so NO_GROUNDING / LOW_COVERAGE / AMBIGUOUS_GROUNDING cannot
+    fire — unknown is not zero. The protocol serves; escalation_rate stays 0.
+    """
+    from sqltok import RelevanceGreedySelector, parse_ddl
+
+    schema = parse_ddl(sample_ddl)
+    mgr = SchemaBudgetManager(schema, selector=RelevanceGreedySelector(schema))
+    ctx = mgr.build_context(
+        "total order amount by customer region",
+        escalation_policy=EscalationPolicy(name="greedy"),
+    )
+    assert ctx.decision_state is DecisionState.SERVED
+    assert ctx.escalation is None
+    assert ctx.grounded_mentions == -1
+    assert ctx.coverage_reported is False
 
 
 def test_schema_context_is_still_a_context(sample_ddl: str) -> None:

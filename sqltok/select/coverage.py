@@ -193,9 +193,9 @@ class CoverageSelector:
     def _ranked_table_scores(grounded: GroundedQuery) -> tuple[float, ...]:
         """Per-table weighted cover scores, best first (escalation evidence).
 
-        Each table's score is its total grounded mention weight — the same
-        value the greedy maximiser compares against — so a tie at the top is
-        genuine contender ambiguity, not an artefact of the ranking.
+        Each table's score is its total grounded mention weight: a near-tie at
+        the top means two tables explain the question's mentions almost equally
+        well — genuine contender ambiguity, not an artefact of the ranking.
         """
         if not grounded.weights.size:
             return ()

@@ -129,7 +129,7 @@ print(ctx.token_count)  # measured, <= budget
 | `token_budget` | `int` | `2000` | Hard ceiling on schema-context tokens. `ctx.token_count` is guaranteed not to exceed this. |
 | `include_sample_rows` | `bool` | `True` | Attach one example row per included table when it fits within budget. |
 | `fk_expand` | `bool` | `True` | Add foreign-key bridge/neighbour tables so the selection is join-connected, budget permitting. |
-| `escalation_policy` | `EscalationPolicy \| None` | `None` | Declared-in-advance escalation contract. When given, the built context is evaluated against the declared paths; if one fires, the returned context carries `decision_state=ESCALATED` and its `EscalatedCase` instead of a silently degraded selection. `None` preserves the legacy behaviour (always `SERVED`). |
+| `escalation_policy` | `EscalationPolicy \| None` | `None` | Declared-in-advance escalation contract. When given, the built context is evaluated against the declared paths; if one fires, the returned context carries `decision_state=ESCALATED` and its `EscalatedCase` (the built selection stays attached for the arbiter's inspection — branch on `decision_state`). `None` preserves the legacy behaviour (always `SERVED`). |
 
 **Raises:** `ValueError` if `token_budget <= 0`.
 
@@ -228,13 +228,16 @@ policy = EscalationPolicy(
 
 ctx = mgr.build_context("total orders for customers in France", escalation_policy=policy)
 if ctx.decision_state is DecisionState.ESCALATED:
-    route_to_arbiter(ctx.escalation)  # .path, .arbiter, .evidence, .policy_name
+    # route_to_arbiter is yours to write: ctx.escalation carries everything
+    # it needs (.path, .arbiter, .evidence, .policy_name).
+    route_to_arbiter(ctx.escalation)
 ```
 
 Only declared paths can fire, and declaration order is priority order when
 several triggers hold. `EscalationPolicy` validates its declaration at
-construction (non-empty unique paths, `coverage_floor` in `[0, 1]`,
-`ambiguity_top_k >= 2`, non-empty arbiter).
+construction (non-empty unique `EscalationPath` members — plain strings are
+rejected — `coverage_floor` in `[0, 1]`, `ambiguity_top_k >= 2`, non-empty
+arbiter).
 
 Keep escalated cases out of automated scores with `summarize` — score
 statistics accumulate over `SERVED` decisions only, by construction, while
