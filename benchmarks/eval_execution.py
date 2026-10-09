@@ -8,7 +8,10 @@ Runs the full eval discipline from the issue over the sample fixture
   per token budget (the under/over-retrieval distinction);
 * execution: every generated query is governance-checked, then run in a
   read-only budgeted sandbox — execution success rate, null-result frequency,
-  runtime exceptions;
+  runtime exceptions. Note: governance is a recorded parallel signal in the
+  battery, not an execution gate — the sandbox runs the query regardless
+  (read-only + budgeted), so the battery measures what a blocked query would
+  have done too (defense-in-depth measurement);
 * semantic equivalence: generated result vs trusted reference result;
 * repair: a synthetic scripted generator (clearly labeled) exercises the
   repair loop mechanics — repair success rate, attempts, escalation fallback;
@@ -89,7 +92,7 @@ class BatteryTotals:
     equivalence: Counter[str] = field(default_factory=Counter)
     governance: Counter[str] = field(default_factory=Counter)
     full_scans: int = 0
-    retrieval: dict[str, dict[str, float]] = field(default_factory=dict)
+    retrieval: dict[str, dict[str, float | int | None]] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, object]:
         return {

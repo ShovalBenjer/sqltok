@@ -61,8 +61,9 @@ def semantic_equivalence(
     an ``ORDER BY``, in which case sequence order is part of the contract.
     ``gold_sql`` is required (not defaulted): silently defaulting to
     order-insensitive comparison would weaken the check without the caller
-    noticing. ``NULL`` compares equal to ``NULL``; numeric/string values
-    compare exactly (no tolerance theater on fixture data).
+    noticing. ``NULL`` compares equal to ``NULL``; values compare by Python
+    equality (so ``1 == 1.0`` — value equality, not type equality; no
+    tolerance theater, just the language's own ``==``).
     """
     if not gold.ok:
         return EquivalenceResult(

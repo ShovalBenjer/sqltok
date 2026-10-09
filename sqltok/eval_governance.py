@@ -171,7 +171,12 @@ def govern(
             GovernanceVerdict.BLOCK_UNPARSEABLE,
             (f"policy '{policy.name}': query does not parse as SQLite",),
         )
-    parsed_list: list[exp.Expr] = [p for p in raw_list if p is not None]
+    # A trailing semicolon (with or without a comment) is statement
+    # termination, not a second statement — sqlglot surfaces it as an
+    # exp.Semicolon node, which must not count as stacking.
+    parsed_list: list[exp.Expr] = [
+        p for p in raw_list if p is not None and not isinstance(p, exp.Semicolon)
+    ]
     if not parsed_list:
         return GovernanceResult(
             GovernanceVerdict.BLOCK_UNPARSEABLE,

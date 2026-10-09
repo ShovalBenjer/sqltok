@@ -287,7 +287,6 @@ def test_retrieval_against_real_selector() -> None:
 
 def _scripted_generator(scripts: dict[int, str]):
     def generate(prompt: str, last_error: str | None) -> str:
-        assert last_error is not None or True  # feedback threading is structural
         n = _scripted_generator.calls + 1
         _scripted_generator.calls = n
         return scripts[n]
@@ -401,6 +400,15 @@ def test_governance_battery_all_pass() -> None:
     failures = [c for c in report.cases if not c.passed]
     assert report.all_passed, f"battery failures: {[(c.name, c.verdict) for c in failures]}"
     assert report.total == 11
+
+
+def test_governance_trailing_semicolon_not_stacked() -> None:
+    """A trailing semicolon (LLMs emit these constantly) is termination,
+    not a stacked statement."""
+    result = govern("SELECT id FROM customers; -- done", STRICT)
+    assert result.verdict == GovernanceVerdict.ALLOW
+    result2 = govern("SELECT id FROM customers;", STRICT)
+    assert result2.verdict == GovernanceVerdict.ALLOW
 
 
 def test_governance_blocks_restricted_join() -> None:
