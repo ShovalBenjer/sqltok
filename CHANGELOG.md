@@ -5,6 +5,26 @@ Keep a Changelog, and the project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Escalation protocol with first-class states (issue #38): escalation-to-human
+  is now a designed branch of the selection protocol, not a failure mode. New
+  `sqltok/escalation.py` declares `DecisionState` (`SERVED`/`ESCALATED`, a
+  closed enum with no failure member), `EscalationPath` (`no_grounding`,
+  `budget_exhausted`, `low_coverage`, `ambiguous_grounding`),
+  `EscalationPolicy` (paths declared in advance with validated thresholds and
+  arbiter; only declared paths can fire, declaration order is priority), and
+  `summarize`/`EscalationReport` (automated score statistics over `SERVED`
+  cases only — escalated cases are excluded by construction — with escalation
+  reported as normal routing telemetry, never as failure).
+  `SchemaBudgetManager.build_context(..., escalation_policy=...)` evaluates the
+  built context against the declared paths and stamps escalated contexts with
+  their `EscalatedCase`; without a policy behaviour is unchanged.
+  `SchemaContext` carries `decision_state`/`escalation` plus grounding
+  evidence (`grounded_mentions`, `top_scores`, `coverage_reported`), guarded by
+  a fail-closed `__post_init__` invariant. 26 adversarial tests in
+  `tests/test_escalation.py`.
+
 ### Changed
 
 - Coverage selector now spends spare budget on foreign-key neighbours of the
