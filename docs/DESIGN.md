@@ -22,8 +22,8 @@ fails in three specific ways that SQLTok is designed to handle.
 | Limitation of keyword retrieval | How SQLTok handles it |
 | --- | --- |
 | Mentions hide in cell values. "France" is a value in `customers.country`, never a column name, so keyword search over names misses it. | Native value grounding with MinHash and banded LSH over sampled cell values. |
-| Top-k ignores the budget and redundancy. It can exceed the token ceiling or select several tables covering the same content. | Submodular coverage under a hard token budget, where diminishing returns remove redundancy and yield a `(1 - 1/e)` approximation guarantee. |
-| Retrieved tables may not be joinable. Two relevant tables with no foreign-key path lead the model to invent joins. | Foreign-key Steiner connectivity adds the minimal set of bridge tables. |
+| Top-k ignores the budget and redundancy. It can exceed the token ceiling or select several tables covering the same content. | Submodular coverage under a hard token budget, where diminishing returns remove redundancy and yield a constant-factor approximation guarantee (about 0.32 under the token knapsack; 0.63 under a cardinality relaxation). |
+| Retrieved tables may not be joinable. Two relevant tables with no foreign-key path lead the model to invent joins. | Foreign-key Steiner connectivity adds bridge tables along shortest FK paths so the selection stays joinable. |
 
 BM25 is retained as the baseline selector (`RelevanceGreedySelector`) so that
 benchmark gains are attributable. The default selector is the value-grounded
@@ -36,16 +36,19 @@ question, and a budget into a compact, joinable schema string. It has no LLM
 client, no framework adapter, and no network I/O in the core. It plugs into any
 Text-to-SQL pipeline as a pre-processing step.
 
-The output is a plain-text `CREATE TABLE`-style string. That means it works with
-every model, every framework, and every prompt template. It is compatible with
-LangChain, LlamaIndex, Vanna, and any custom pipeline. The token budget is
-measured with `tiktoken`, which is the same tokenizer used by OpenAI's models,
-so the budget is meaningful for the target model without translation.
+The output is a plain-text `CREATE TABLE`-style string. That means the result
+drops into any prompt template and any Text-to-SQL pipeline — LangChain,
+LlamaIndex, Vanna, or custom code — with no adapter. Native framework adapters
+are on the v0.2 roadmap. The token budget is measured with `tiktoken`, which is
+the same tokenizer used by OpenAI's models, so the budget is meaningful for the
+target model without translation.
 
 The benchmark harness is built around BIRD, the de facto standard
-Text-to-SQL benchmark. SQLTok's gains are measured against the BIRD mini-dev
-split (500 questions, 11 databases) using the official execution-accuracy script.
-This makes results comparable to other schema-retrieval work.
+Text-to-SQL benchmark. SQLTok's schema-linking recall is measured against the
+BIRD mini-dev split (500 questions, 11 databases) by checking selected tables
+against the tables in the gold SQL; full execution-accuracy runs are pending
+(see `benchmarks/RESULTS.md`). This makes results comparable to other
+schema-retrieval work.
 
 ## Architecture overview
 
@@ -80,9 +83,9 @@ The goal is a matrix `cover[table, mention]` in the range zero to one, plus a
 weight for each mention.
 
 1. **Mention extraction** (`grounding/text.py`). The question is split into
-   candidate phrases: one to three word n-grams plus quoted literals, with
-   stopwords trimmed from the edges. "total revenue by region" yields "total
-   revenue", "revenue", and "region".
+   candidate phrases: quoted literals plus one-to-three-word n-grams with
+   stopwords trimmed from the edges. "total revenue by region" yields, in order,
+   `total`, `revenue`, `region`, `total revenue`, and `revenue by region`.
 
 2. **Character shingling**. Each string becomes a set of three-character
    substrings. "France" becomes `{fra, ran, anc, nce}`. Character shingles give
@@ -104,8 +107,8 @@ weight for each mention.
 4. **Banded LSH** (`grounding/lsh.py`). Every schema string (table names, column
    names, sampled cell values) is indexed by its signature, split into 32 bands
    of 2 rows. Items that match across a full band fall into the same bucket, and
-   a query inspects only colliding buckets. This produces candidates in near
-   constant time rather than scanning every value. The collision threshold is
+   a query inspects only colliding buckets. This produces candidates in
+   sublinear time rather than scanning every value. The collision threshold is
    approximately `(1 / bands) ** (1 / rows)`, about 0.18, which favours recall.
 
 5. **Affinity and self-supervised IDF** (`grounding/affinity.py`). For each
@@ -133,8 +136,11 @@ f(S) = sum over mentions m of  weight(m) * max over tables T in S of cover(m, T)
 Each mention scores through the single best table that covers it. The use of
 `max` gives diminishing returns: once a mention is covered, another table that
 covers it adds zero marginal value, so redundancy is handled automatically and
-`f` is monotone and submodular. For such functions, the greedy maximizer has the
-classic `(1 - 1/e)`, about 0.63, approximation guarantee.
+`f` is monotone and submodular. Under a cardinality constraint the greedy
+maximizer has the classic `(1 - 1/e)`, about 0.63, approximation guarantee; under
+per-table token costs (a knapsack) the cost-benefit ratio greedy plus the
+best-single-table comparison recovers a weaker constant factor — roughly
+`(1 - 1/e) / 2`, about 0.32 (Khuller, Moss, and Naor).
 
 Tables have different token costs, so selection is a knapsack. At each step
 SQLTok picks the table that maximizes marginal gain divided by token cost, which
@@ -157,10 +163,11 @@ A relevance-only set can contain `products` and `orders` with no direct join,
 which leads the model to invent an incorrect join. SQLTok (`select/connect.py`)
 builds the undirected foreign-key graph, checks whether the selected tables form
 one connected component, and if not finds the shortest foreign-key path between
-components and adds the minimal bridge tables, for example `line_items`
-connecting `products` and `orders`, as long as the budget allows. This is a
-heuristic Steiner tree over the foreign-key graph, following the AutoLink
-observation that foreign keys are the natural bridges between relevant tables.
+components and adds bridge tables — for example `line_items` connecting
+`products` and `orders` — as long as the budget allows. This is a shortest-path
+approximation of a Steiner tree over the foreign-key graph (not a provably
+minimal one), following the AutoLink observation that foreign keys are the
+natural bridges between relevant tables.
 
 ### Stage 4: The budget guarantee
 
@@ -179,9 +186,8 @@ loading a model, sending text through it, and storing dense vectors. MinHash + L
 is implemented in pure Python and NumPy, has no network or model dependency, and
 is deterministic with fixed seeds. The tradeoff is that LSH is approximate, but
 the banded scheme with threshold ~0.18 favours recall, which is the correctness
-metric. Embeddings are available as an optional extra (`sqltok[embeddings]`) in
-the BM25 retriever for hybrid retrieval, but the default selector does not need
-them.
+metric. Embeddings are available as an optional extra (`sqltok[embeddings]`) for
+hybrid retrieval, but the default selector does not need them.
 
 ### Why submodular coverage instead of pure BM25 top-k?
 
@@ -202,17 +208,18 @@ measurable effect of the new algorithm.
 
 ### Why hard token budget instead of soft or estimated?
 
-LLM providers charge by token and models have hard context windows. A heuristic
-like "len(text) / 4" can be off by 2x or more, which breaks both cost models and
-context limits. SQLTok measures every candidate context with the real tokenizer
-before committing it, so the budget is a hard invariant.
+LLM providers charge by token and models have hard context windows. A rough
+character-count estimate like `len(text) / 4` can be off by 2x or more, which
+breaks both cost models and context limits. SQLTok measures every candidate
+context with the real tokenizer before committing it, so the budget is a hard
+invariant.
 
 ### Why FK connectivity instead of letting the model join?
 
 A model asked to join two tables with no foreign-key path will invent a join
 condition, which is wrong. Adding bridge tables costs a few extra tokens but
-prevents hallucinated joins. The heuristic Steiner tree over the foreign-key
-graph is the minimal addition subject to the budget.
+prevents hallucinated joins. The shortest-path Steiner approximation adds only
+bridge tables that fit the remaining budget.
 
 ### Why Python and NumPy instead of Rust from the start?
 
@@ -225,11 +232,14 @@ the algorithm is frozen, and there is a detailed plan for that migration.
 
 On BIRD mini-dev (500 questions, 11 SQLite databases), measured with `tiktoken`
 (`cl100k_base`). Baseline is the full schema dump with one sample row per table.
+Numbers below are taken verbatim from `benchmarks/RESULTS.md` as of 2026-07-02
+(commit `626ce51`); if the tables below ever disagree with that file, the file
+wins.
 
 ### Schema-linking recall
 
 | Budget | Table recall | Full-recall rate | Precision | Avg tables |
-| ---: | ---: | ---: | ---: | ---: |
+| ---: | ---: | ---: | ---: | --- |
 | 1000 | 96.3% | 91.8% | 42.8% | 5.45 |
 | 2000 | 99.0% | 97.4% | 40.7% | 6.11 |
 | 4000 | 99.0% | 97.4% | 39.8% | 6.24 |
@@ -240,7 +250,7 @@ is the ceiling on achievable execution accuracy.
 ### Token reduction
 
 | Arm | Schema tokens (mean) | Total input tokens | Total input reduction |
-| --- | ---: | ---: | ---: |
+| --- | ---: | ---: | --- |
 | Baseline (full dump) | 1161 | 629,819 | Reference |
 | SQLTok at 1000 | 703 | 401,285 | 36.3% |
 | SQLTok at 2000 | 944 | 521,760 | 17.2% |
@@ -264,11 +274,13 @@ is the ceiling on achievable execution accuracy.
 ### Speed
 
 Grounding dominates the per-question cost. The LSH index is built once per
-schema in `SchemaGrounding.__init__`. For a 100-table schema with ~20 strings
-per table, the index occupies roughly 1 MB. `ground(question)` is near-constant
-time. `CoverageSelector.select` is `O(T log T)` where T is the number of
-candidate tables, dominated by CELF heap operations. On BIRD mini-dev, the full
-500-question recall eval (`eval_recall.py`) runs in under a minute on a laptop.
+schema in `SchemaGrounding.__init__`. For a 100-table schema with ~20 indexed
+strings per table, the index occupies on the order of 10 MB — measured at ~9.8 MB
+for a synthetic 100-table schema, where the LSH bucket tables dominate the
+64-entry signatures. `CoverageSelector.select` is `O(T log T)` where T is the
+number of candidate tables, dominated by CELF heap operations. On BIRD mini-dev,
+the full 500-question recall eval (`eval_recall.py`) is deterministic and needs
+no API key; reproduce commands are in `benchmarks/RESULTS.md`.
 
 ## Future directions
 
@@ -290,9 +302,11 @@ candidate tables, dominated by CELF heap operations. On BIRD mini-dev, the full
 
 ### Rust migration
 
-The Rust rewrite plan is documented in [`rust-rewrite-plan.md`](rust-rewrite-plan.md).
+The Rust rewrite plan is documented in
+[`design/rust-rewrite-plan.md`](design/rust-rewrite-plan.md).
 The short version: port the hot, well-specified core to a Rust crate and expose
-it through the existing `pip install sqltok` API with a PyO3 wheel, while keeping
+it through the same Python package API (today installable from git; the PyPI
+release path is documented in `RUNBOOK.md` §2) with a PyO3 wheel, while keeping
 the current Python implementation as the oracle until parity is proven on BIRD.
 
 What Rust buys:
@@ -304,8 +318,9 @@ What Rust buys:
 
 What Rust does not buy:
 - Better recall or accuracy. Those are algorithmic and live in the design, not
-  the language. The recent jump from 78 to 97 percent full-recall came from the
-  FK-expansion algorithm, not from any language feature.
+  the language. The recent jump from 76 to 92 percent full-recall at the
+  1000-token budget (and to 97 at 2000) came from the FK-expansion algorithm,
+  not from any language feature.
 - Any benefit for the LLM clients or the BIRD harness. Those stay in Python.
 
 The migration is phased and de-risked by differential testing. The current

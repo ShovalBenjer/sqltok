@@ -4,7 +4,7 @@ A relevance-only selection can return tables with no join path between them,
 which makes the LLM hallucinate joins. Following AutoLink's observation that
 foreign keys are the "natural bridges" between relevant tables, we greedily add
 the smallest set of intermediate (bridge) tables that makes the selection
-join-connected — a heuristic Steiner-tree over the foreign-key graph — subject to
+join-connected — a shortest-path Steiner approximation over the foreign-key graph — subject to
 the remaining token budget.
 """
 
