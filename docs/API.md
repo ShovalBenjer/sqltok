@@ -214,16 +214,19 @@ Declare the contract **in advance**, then hand it to the manager:
 ```python
 policy = EscalationPolicy(
     name="warehouse",
-    paths=(EscalationPath.NO_GROUNDING, EscalationPath.BUDGET_EXHAUSTED,
-           EscalationPath.LOW_COVERAGE, EscalationPath.AMBIGUOUS_GROUNDING),
+    paths=(
+        EscalationPath.NO_GROUNDING,
+        EscalationPath.BUDGET_EXHAUSTED,
+        EscalationPath.LOW_COVERAGE,
+        EscalationPath.AMBIGUOUS_GROUNDING,
+    ),
     coverage_floor=0.25,
     ambiguity_epsilon=1e-6,
     ambiguity_top_k=3,
     arbiter="human",
 )
 
-ctx = mgr.build_context("total orders for customers in France",
-                        escalation_policy=policy)
+ctx = mgr.build_context("total orders for customers in France", escalation_policy=policy)
 if ctx.decision_state is DecisionState.ESCALATED:
     route_to_arbiter(ctx.escalation)  # .path, .arbiter, .evidence, .policy_name
 ```
@@ -238,10 +241,12 @@ statistics accumulate over `SERVED` decisions only, by construction, while
 escalation is reported as normal routing telemetry:
 
 ```python
-report = summarize([
-    ScoredDecision(state, path, score)  # score=None when unscored
-    for state, path, score in outcomes
-])
+report = summarize(
+    [
+        ScoredDecision(state, path, score)  # score=None when unscored
+        for state, path, score in outcomes
+    ]
+)
 print(report.render())
 # decisions: 10 (served=8, escalated=2, escalation_rate=0.200)
 # escalation is a normal protocol branch, not a failure: ...
