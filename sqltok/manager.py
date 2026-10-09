@@ -9,10 +9,12 @@ submodular :class:`~sqltok.select.coverage.CoverageSelector`; the BM25
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from .context import SchemaContext
 from .ddl import parse_ddl
+from .escalation import DecisionState, EscalatedCase, EscalationEvidence, EscalationPolicy
 from .introspect import introspect_sqlite
 from .models import Schema
 from .select.base import SchemaSelector
@@ -98,6 +100,7 @@ class SchemaBudgetManager:
         token_budget: int = 2000,
         include_sample_rows: bool = True,
         fk_expand: bool = True,
+        escalation_policy: EscalationPolicy | None = None,
     ) -> SchemaContext:
         """Build a token-budgeted schema context for ``question``.
 
@@ -109,20 +112,36 @@ class SchemaBudgetManager:
                 it fits within budget.
             fk_expand: Add foreign-key bridge/neighbour tables so the selection
                 is join-connected, budget permitting.
+            escalation_policy: Optional declared-in-advance escalation contract
+                (:class:`~sqltok.escalation.EscalationPolicy`). When given, the
+                built context is evaluated against the declared paths; if one
+                fires, the returned context carries
+                ``decision_state=ESCALATED`` and its
+                :class:`~sqltok.escalation.EscalatedCase`. The built selection
+                stays attached for the arbiter's inspection — consumers must
+                branch on ``decision_state`` rather than reading the tables
+                blindly. ``None`` (default) preserves the legacy behaviour:
+                the context is always ``SERVED``.
 
         Returns:
-            A :class:`SchemaContext` with the rendered text, selected tables, and
-            measured token count.
+            A :class:`SchemaContext` with the rendered text, selected tables,
+            measured token count, and its first-class protocol outcome.
         """
         if token_budget <= 0:
             raise ValueError("token_budget must be positive")
-        return self.selector.select(
+        ctx = self.selector.select(
             question,
             token_budget=token_budget,
             counter=self.counter,
             include_sample_rows=include_sample_rows,
             fk_expand=fk_expand,
         )
+        if escalation_policy is None:
+            return ctx
+        case = escalation_policy.evaluate(question, _evidence_from(ctx))
+        if case is None:
+            return ctx
+        return _stamp_escalated(ctx, case)
 
     def full_schema_text(self, *, include_sample_rows: bool = True) -> str:
         """Return the entire schema as DDL (the benchmark *baseline* dump)."""
@@ -131,3 +150,29 @@ class SchemaBudgetManager:
     def count_tokens(self, text: str) -> int:
         """Count tokens in ``text`` with this manager's encoding."""
         return self.counter.count(text)
+
+
+def _evidence_from(ctx: SchemaContext) -> EscalationEvidence:
+    """Assemble escalation evidence from a built context.
+
+    Coverage participates only when the selector actually reported it
+    (:attr:`SchemaContext.coverage_reported`); a selector that never computes
+    coverage must not trip the ``LOW_COVERAGE`` path on its default ``0.0``.
+    """
+    return EscalationEvidence(
+        mention_count=ctx.grounded_mentions,
+        tables_selected=len(ctx.tables),
+        covered_weight=ctx.covered_weight if ctx.coverage_reported else None,
+        top_scores=ctx.top_scores,
+    )
+
+
+def _stamp_escalated(ctx: SchemaContext, case: EscalatedCase) -> SchemaContext:
+    """Return a copy of ``ctx`` stamped with its escalation outcome.
+
+    :func:`dataclasses.replace` re-runs the context's ``__post_init__``, so the
+    state/record invariant is re-checked on the stamped copy, not trusted.
+    """
+    stamped = replace(ctx, decision_state=DecisionState.ESCALATED, escalation=case)
+    assert stamped.decision_state is DecisionState.ESCALATED
+    return stamped

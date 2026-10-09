@@ -98,6 +98,9 @@ class CoverageSelector:
             bridge_tables=bridges,
             fk_expanded=fk_added,
             covered_weight=covered / total_weight if total_weight else 0.0,
+            grounded_mentions=len(grounded.mentions),
+            top_scores=self._ranked_table_scores(grounded),
+            coverage_reported=True,
         )
 
     # -- internals ------------------------------------------------------------
@@ -185,6 +188,22 @@ class CoverageSelector:
             return 0.0
         covered = np.max(np.stack(rows, axis=0), axis=0)
         return float((grounded.weights * covered).sum())
+
+    @staticmethod
+    def _ranked_table_scores(grounded: GroundedQuery) -> tuple[float, ...]:
+        """Per-table weighted cover scores, best first (escalation evidence).
+
+        Each table's score is its total grounded mention weight: a near-tie at
+        the top means two tables explain the question's mentions almost equally
+        well — genuine contender ambiguity, not an artefact of the ranking.
+        """
+        if not grounded.weights.size:
+            return ()
+        scores = (
+            float((grounded.weights * grounded.cover[i]).sum())
+            for i in range(len(grounded.table_order))
+        )
+        return tuple(sorted(scores, reverse=True))
 
     def _fallback_pack(self, packer: BudgetPacker) -> None:
         """No grounding signal: pack the smallest tables first to fill budget."""

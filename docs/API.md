@@ -31,6 +31,14 @@ from sqltok import (
     parse_ddl,
     DDLParseError,
     introspect_sqlite,
+    DecisionState,
+    EscalatedCase,
+    EscalationEvidence,
+    EscalationPath,
+    EscalationPolicy,
+    EscalationReport,
+    ScoredDecision,
+    summarize,
     __version__,
 )
 ```
@@ -99,7 +107,7 @@ mgr = SchemaBudgetManager.from_ddl(ddl)
 
 ### Core methods
 
-#### `build_context(question, *, token_budget=2000, include_sample_rows=True, fk_expand=True) -> SchemaContext`
+#### `build_context(question, *, token_budget=2000, include_sample_rows=True, fk_expand=True, escalation_policy=None) -> SchemaContext`
 
 Build a token-budgeted schema context for `question`. This is the method you
 call per query.
@@ -121,6 +129,7 @@ print(ctx.token_count)  # measured, <= budget
 | `token_budget` | `int` | `2000` | Hard ceiling on schema-context tokens. `ctx.token_count` is guaranteed not to exceed this. |
 | `include_sample_rows` | `bool` | `True` | Attach one example row per included table when it fits within budget. |
 | `fk_expand` | `bool` | `True` | Add foreign-key bridge/neighbour tables so the selection is join-connected, budget permitting. |
+| `escalation_policy` | `EscalationPolicy \| None` | `None` | Declared-in-advance escalation contract. When given, the built context is evaluated against the declared paths; if one fires, the returned context carries `decision_state=ESCALATED` and its `EscalatedCase` (the built selection stays attached for the arbiter's inspection — branch on `decision_state`). `None` preserves the legacy behaviour (always `SERVED`). |
 
 **Raises:** `ValueError` if `token_budget <= 0`.
 
@@ -180,9 +189,75 @@ from sqltok import SchemaContext
 | `bridge_tables` | `list[str]` | Tables added purely to make the selection join-connected (foreign-key Steiner bridges). |
 | `fk_expanded` | `list[str]` | Tables added by plain foreign-key expansion (baseline selector); kept for backwards compatibility. |
 | `covered_weight` | `float` | Fraction of total grounded mention weight covered by the selection (`0.0` for selectors that do not compute coverage). |
+| `decision_state` | `DecisionState` | First-class protocol outcome: `SERVED` (default) or `ESCALATED`. |
+| `escalation` | `EscalatedCase \| None` | The escalation record when `decision_state` is `ESCALATED`, else `None`. A fail-closed invariant keeps the two consistent (mismatched pairs raise `ValueError`). |
+| `grounded_mentions` | `int` | Grounded mention count reported by grounding-based selectors; `-1` (unknown) otherwise. |
+| `top_scores` | `tuple[float, ...]` | Ranked per-table grounding scores, best first; empty when unreported. |
+| `coverage_reported` | `bool` | Whether `covered_weight` was actually computed (`False` distinguishes "unreported" from a genuine `0.0`). |
 
 `SchemaContext` is a `@dataclass(slots=True)`. It also implements `__str__` to
 return `text`, so `print(ctx)` prints the schema string.
+
+---
+
+## Escalation protocol
+
+Escalation-to-human is a designed branch of the selection protocol, not a
+failure mode (issue #38).
+
+```python
+from sqltok import EscalationPolicy, EscalationPath, summarize, ScoredDecision
+```
+
+Declare the contract **in advance**, then hand it to the manager:
+
+```python
+policy = EscalationPolicy(
+    name="warehouse",
+    paths=(
+        EscalationPath.NO_GROUNDING,
+        EscalationPath.BUDGET_EXHAUSTED,
+        EscalationPath.LOW_COVERAGE,
+        EscalationPath.AMBIGUOUS_GROUNDING,
+    ),
+    coverage_floor=0.25,
+    ambiguity_epsilon=1e-6,
+    ambiguity_top_k=3,
+    arbiter="human",
+)
+
+ctx = mgr.build_context("total orders for customers in France", escalation_policy=policy)
+if ctx.decision_state is DecisionState.ESCALATED:
+    # route_to_arbiter is yours to write: ctx.escalation carries everything
+    # it needs (.path, .arbiter, .evidence, .policy_name).
+    route_to_arbiter(ctx.escalation)
+```
+
+Only declared paths can fire, and declaration order is priority order when
+several triggers hold. `EscalationPolicy` validates its declaration at
+construction (non-empty unique `EscalationPath` members — plain strings are
+rejected — `coverage_floor` in `[0, 1]`, `ambiguity_top_k >= 2`, non-empty
+arbiter).
+
+Keep escalated cases out of automated scores with `summarize` — score
+statistics accumulate over `SERVED` decisions only, by construction, while
+escalation is reported as normal routing telemetry:
+
+```python
+report = summarize(
+    [
+        ScoredDecision(state, path, score)  # score=None when unscored
+        for state, path, score in outcomes
+    ]
+)
+print(report.render())
+# decisions: 10 (served=8, escalated=2, escalation_rate=0.200)
+# escalation is a normal protocol branch, not a failure: ...
+```
+
+There is deliberately no failure member on `DecisionState` and no failure
+field on `EscalationReport`: counting escalation as failure is not
+representable in these types.
 
 ---
 

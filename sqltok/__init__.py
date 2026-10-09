@@ -20,6 +20,16 @@ from __future__ import annotations
 
 from .context import SchemaContext
 from .ddl import DDLParseError, parse_ddl
+from .escalation import (
+    DecisionState,
+    EscalatedCase,
+    EscalationEvidence,
+    EscalationPath,
+    EscalationPolicy,
+    EscalationReport,
+    ScoredDecision,
+    summarize,
+)
 from .grounding import SchemaGrounding
 from .introspect import introspect_sqlite
 from .manager import SchemaBudgetManager
@@ -55,5 +65,13 @@ __all__ = [
     "parse_ddl",
     "DDLParseError",
     "introspect_sqlite",
+    "DecisionState",
+    "EscalatedCase",
+    "EscalationEvidence",
+    "EscalationPath",
+    "EscalationPolicy",
+    "EscalationReport",
+    "ScoredDecision",
+    "summarize",
     "__version__",
 ]
