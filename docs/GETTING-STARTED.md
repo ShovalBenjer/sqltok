@@ -128,6 +128,9 @@ ablation, swap in `RelevanceGreedySelector`, the BM25 baseline:
 
 ```python
 from sqltok import SchemaBudgetManager, RelevanceGreedySelector
+from sqltok.introspect import introspect_sqlite
+
+schema = introspect_sqlite("northwind.sqlite")  # any SQLite file works
 
 mgr = SchemaBudgetManager(
     schema,
@@ -143,6 +146,9 @@ token savings:
 
 ```python
 from sqltok import SchemaBudgetManager, CoverageSelector
+from sqltok.introspect import introspect_sqlite
+
+schema = introspect_sqlite("northwind.sqlite")  # any SQLite file works
 
 mgr = SchemaBudgetManager(
     schema,
@@ -319,7 +325,7 @@ print(ctx.text)
 
 Expected output, measured with `tiktoken` (`cl100k_base`) against the
 `northwind.sqlite` file built above (“Austria” grounds to
-`customers`, “freight” grounds to `orders`, and the FK bridge pulls
+`customers`, “freight” grounds to `orders`, and FK expansion pulls
 in `order_details`):
 
 ```
