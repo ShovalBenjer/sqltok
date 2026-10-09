@@ -218,11 +218,23 @@ edges are skipped since they add no join connectivity. A composite foreign key
 is a *single* edge here: multi-column keys join two tables once, not once per
 column.
 
+```python
+for src, fk in schema.fk_edges():
+    print(f"{src}.{','.join(fk.local_cols)} -> {fk.ref_table}.{','.join(fk.ref_cols)}")
+# on the bundled benchmarks sample database (school.sqlite):
+# students.school_id -> schools.id
+```
+
 #### `fk_adjacency() -> dict[str, set[str]]`
 
 Return the undirected foreign-key adjacency map for the whole schema, built in
 a single pass over `fk_edges`. Composite foreign keys contribute exactly one
 undirected edge between the two tables they join.
+
+```python
+adj = schema.fk_adjacency()
+print(sorted(adj["students"]))  # ['schools'] — on school.sqlite
+```
 
 #### `fk_neighbors(name) -> list[str]`
 
@@ -365,6 +377,8 @@ Turn a question and a token budget into a `SchemaContext`.
 
 - `CoverageSelector` (default)
 - `RelevanceGreedySelector`
+- `SLMSchemaRouter` (small-LM rerank router — see *Selection and grounding
+  internals* below)
 - `RerankSelector` (v0.2 stub, raises `NotImplementedError`)
 - `AgenticSelector` (v0.2 stub, raises `NotImplementedError`)
 
@@ -412,10 +426,8 @@ Build a budgeted, join-connected schema context for `question`.
 - Grounding is near-constant after the initial LSH index build.
 - CELF lazy evaluation reduces hundreds of candidate evaluations to a few heap
   operations.
-- The `fk_min_links=2` setting favours precision and tokens over recall: per
-  `benchmarks/RESULTS.md` (BIRD mini-dev) it yields roughly 81 to 86% full-recall
-  at 553 to 819 mean schema tokens, versus 91.8% full-recall at 703 mean tokens
-  for budget 1000 with the default `fk_min_links=1`.
+- The `fk_min_links=2` setting favours precision and tokens over recall; see
+  *Measured benchmark results* below for the BIRD mini-dev numbers.
 
 ---
 
@@ -453,8 +465,10 @@ guarantee. Used as the honest baseline in benchmarks.
 
 ## RerankSelector
 
-v0.2 stub. Planned: rerank coverage candidates with a cross-encoder before
-packing.
+> **Not implemented — v0.2 placeholder.** You can construct it, but calling
+> `select()` raises `NotImplementedError`.
+
+Planned: rerank coverage candidates with a cross-encoder before packing.
 
 ```python
 from sqltok import RerankSelector
@@ -477,8 +491,10 @@ Calling `select` raises `NotImplementedError`.
 
 ## AgenticSelector
 
-v0.2 stub. Planned: LLM-driven lazy schema discovery (Datalake Agent / AutoLink
-style).
+> **Not implemented — v0.2 placeholder.** You can construct it, but calling
+> `select()` raises `NotImplementedError`.
+
+Planned: LLM-driven lazy schema discovery (Datalake Agent / AutoLink style).
 
 ```python
 from sqltok import AgenticSelector
@@ -768,9 +784,9 @@ from sqltok.grounding import MinHasher, LSHIndex, extract_mentions
 ```
 
 - `SLMSchemaRouter(schema, *, backend=None, fallback=None, retriever=None, max_candidates=12, uncertainty_margin=0.25, decisions_log=None)` — selector that routes uncertain tables to a small-LM reranker; `decisions()` returns the logged routing decisions.
-- `SLMBackend` — protocol for rerank backends (`available()`, `rerank(question, candidates, table_docs)`).
+- `SLMBackend` — protocol for rerank backends (`available()`, `rerank(question, candidates, *, table_docs)`).
 - `OllamaSLMBackend(model=..., host=...)` — rerank via a local Ollama model; `HeuristicFallbackBackend` — hand-coded-rules fallback used when no backend is `available()`.
-- `BudgetPacker(schema, token_budget, counter, include_sample_rows)` — the token-budget packing primitive selectors build on: `try_add(name)`, `contains(name)`, `standalone_cost(name)`, `render()`, `token_count()`.
-- `connect_selection(packer) -> None` — pull in foreign-key Steiner bridges so a selection is join-connected; `expand_fk_neighbors(packer, seeds, *, min_links=1)` — the neighbour-expansion step.
+- `BudgetPacker(schema, *, token_budget, counter, include_sample_rows)` — the token-budget packing primitive selectors build on: `try_add(name)`, `contains(name)`, `standalone_cost(name)`, `render()`, `token_count()`.
+- `connect_selection(packer) -> list[str]` — add foreign-key Steiner bridges so the selection is join-connected; mutates `packer` and returns the list of added bridge tables.
 - `MinHasher(num_perm=64, seed=1)` — `signature(tokens)` and `estimate_jaccard(sig_a, sig_b)`; `LSHIndex(num_perm=64, bands=32, rows=2, seed=1)` — `add(shingles, payload)` / `query(shingles)` banded-LSH candidate lookup over `LSHCandidate(payload, score)` entries.
-- `extract_mentions(question, max_ngram)` / `word_tokens(text)` / `char_shingles(text, n)` — text helpers behind grounding.
+- `extract_mentions(question, max_ngram=3)` / `word_tokens(text)` / `char_shingles(text, n=3)` — text helpers behind grounding.
