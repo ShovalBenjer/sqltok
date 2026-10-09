@@ -148,16 +148,19 @@ def repair_metrics(reports: Sequence[RepairReport]) -> RepairMetrics:
     produced no case: the failure left the building with no declared owner.
     """
     n = len(reports)
-    needed = [r for r in reports if not r.attempts[0].outcome.ok] if n else []
+    # A report with no attempts is malformed input, not a repair trajectory:
+    # it contributes nothing rather than raising inside the aggregation.
+    attempted = [r for r in reports if r.attempts]
+    needed = [r for r in attempted if not r.attempts[0].outcome.ok]
     repaired = sum(1 for r in needed if r.repaired)
-    exhausted = [r for r in reports if r.exhausted]
+    exhausted = [r for r in attempted if r.exhausted]
     escalated = sum(1 for r in exhausted if r.escalated_case is not None)
     unhandled = len(exhausted) - escalated
     return RepairMetrics(
         n_questions=n,
         n_needed_repair=len(needed),
         repair_success_rate=(repaired / len(needed)) if needed else 1.0,
-        mean_attempts=(sum(r.attempts_used for r in reports) / n) if n else 0.0,
+        mean_attempts=(sum(r.attempts_used for r in attempted) / n) if n else 0.0,
         escalation_rate=(escalated / len(exhausted)) if exhausted else 0.0,
         unhandled_rate=(unhandled / n) if n else 0.0,
     )

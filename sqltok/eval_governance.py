@@ -16,11 +16,24 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Protocol
 
 import sqlglot
 from sqlglot import exp
 
-from .eval_sandbox import SandboxExecutor
+
+class PlanProvider(Protocol):
+    """Something that can produce ``EXPLAIN QUERY PLAN`` output for SQL.
+
+    The governance checker depends on this contract, not on the concrete
+    :class:`~sqltok.eval_sandbox.SandboxExecutor` — the sandbox/governance
+    seam stays one-directional.
+    """
+
+    def explain(self, sql: str) -> tuple[bool, tuple[str, ...], tuple[str, ...], str | None]:
+        """Return ``(ok, plan, full_scan_tables, error)`` for one statement."""
+        ...
+
 
 _UNSAFE_NODES: tuple[type[exp.Expression], ...] = (
     exp.Delete,
@@ -46,6 +59,7 @@ class GovernanceVerdict(StrEnum):
     BLOCK_UNSAFE_STATEMENT = "block_unsafe_statement"
     BLOCK_RESTRICTED_TABLE = "block_restricted_table"
     BLOCK_EXPENSIVE_SCAN = "block_expensive_scan"
+    BLOCK_SCAN_CHECK_UNAVAILABLE = "block_scan_check_unavailable"
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,12 +154,15 @@ def resolve_scan_tables(sql: str, scan_names: Sequence[str]) -> tuple[str, ...]:
 def govern(
     sql: str,
     policy: AccessPolicy,
-    executor: SandboxExecutor | None = None,
+    executor: PlanProvider | None = None,
 ) -> GovernanceResult:
     """Check one SQL string against the policy. Fail-closed throughout.
 
     Priority order when several reasons fire: unparseable → multi-statement →
-    unsafe statement → restricted table → expensive scan.
+    unsafe statement → restricted table → expensive scan. When the policy
+    declares expensive-scan refusal but no plan provider is given, the
+    verdict is BLOCK_SCAN_CHECK_UNAVAILABLE (not BLOCK_EXPENSIVE_SCAN —
+    nothing was measured).
     """
     try:
         raw_list = sqlglot.parse(sql, read="sqlite")
@@ -180,10 +197,10 @@ def govern(
         detail.append(f"policy '{policy.name}': touches restricted tables {sorted(restricted)}")
     if policy.forbid_expensive_scans:
         if executor is None:
-            reasons.append(GovernanceVerdict.BLOCK_EXPENSIVE_SCAN)
+            reasons.append(GovernanceVerdict.BLOCK_SCAN_CHECK_UNAVAILABLE)
             detail.append(
                 f"policy '{policy.name}': expensive-scan check declared but no "
-                "executor given — failing closed"
+                "plan provider given — failing closed"
             )
         else:
             ok, _plan, scans, error = executor.explain(sql)
@@ -315,7 +332,7 @@ class BatteryReport:
 
 def run_battery(
     policy: AccessPolicy,
-    executor: SandboxExecutor | None = None,
+    executor: PlanProvider | None = None,
     cases: Sequence[AdversarialCase] = ADVERSARIAL_CASES,
 ) -> BatteryReport:
     """Run the adversarial battery against :func:`govern`.

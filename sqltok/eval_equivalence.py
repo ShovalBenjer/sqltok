@@ -53,14 +53,16 @@ def _has_order_by(sql: str) -> bool:
 def semantic_equivalence(
     generated: ExecutionOutcome,
     gold: ExecutionOutcome,
-    gold_sql: str = "",
+    gold_sql: str,
 ) -> EquivalenceResult:
     """Compare a generated query's result against the reference query's.
 
     Row comparison is order-insensitive (multiset) unless the gold SQL carries
     an ``ORDER BY``, in which case sequence order is part of the contract.
-    ``NULL`` compares equal to ``NULL``; numeric/string values compare exactly
-    (no tolerance theater on fixture data).
+    ``gold_sql`` is required (not defaulted): silently defaulting to
+    order-insensitive comparison would weaken the check without the caller
+    noticing. ``NULL`` compares equal to ``NULL``; numeric/string values
+    compare exactly (no tolerance theater on fixture data).
     """
     if not gold.ok:
         return EquivalenceResult(

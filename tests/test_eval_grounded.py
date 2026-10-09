@@ -160,7 +160,7 @@ def test_equivalence_canonical_chapter_failure(retail: SandboxExecutor) -> None:
     gen = _exec(retail, WRONG_NO_FILTER)
     gold = _exec(retail, GOLD_FRANCE)
     assert gen.ok and gold.ok, "both queries must execute — that is the trap"
-    result = semantic_equivalence(gen, gold)
+    result = semantic_equivalence(gen, gold, gold_sql="")
     assert result.verdict == EquivalenceVerdict.ROW_CONTENT_MISMATCH
     assert result.detail
 
@@ -168,21 +168,21 @@ def test_equivalence_canonical_chapter_failure(retail: SandboxExecutor) -> None:
 def test_equivalence_identical_results(retail: SandboxExecutor) -> None:
     gen = _exec(retail, "SELECT SUM(amount) FROM orders")
     gold = _exec(retail, WRONG_NO_FILTER)
-    result = semantic_equivalence(gen, gold)
+    result = semantic_equivalence(gen, gold, gold_sql="")
     assert result.verdict == EquivalenceVerdict.EQUIVALENT
 
 
 def test_equivalence_row_count_mismatch(retail: SandboxExecutor) -> None:
     gen = _exec(retail, "SELECT * FROM customers WHERE country = 'France'")
     gold = _exec(retail, "SELECT * FROM customers")
-    result = semantic_equivalence(gen, gold)
+    result = semantic_equivalence(gen, gold, gold_sql="")
     assert result.verdict == EquivalenceVerdict.ROW_COUNT_MISMATCH
 
 
 def test_equivalence_order_insensitive_by_default(retail: SandboxExecutor) -> None:
     gen = _exec(retail, "SELECT id FROM customers ORDER BY id DESC")
     gold = _exec(retail, "SELECT id FROM customers ORDER BY id ASC")
-    assert semantic_equivalence(gen, gold).verdict == EquivalenceVerdict.EQUIVALENT
+    assert semantic_equivalence(gen, gold, gold_sql="").verdict == EquivalenceVerdict.EQUIVALENT
 
 
 def test_equivalence_order_sensitive_when_gold_orders(retail: SandboxExecutor) -> None:
@@ -203,14 +203,14 @@ def test_equivalence_order_by_in_string_literal_ignored(retail: SandboxExecutor)
 def test_equivalence_execution_error(retail: SandboxExecutor) -> None:
     gen = _exec(retail, "SELECT * FRM orders")
     gold = _exec(retail, "SELECT * FROM orders")
-    result = semantic_equivalence(gen, gold)
+    result = semantic_equivalence(gen, gold, gold_sql="")
     assert result.verdict == EquivalenceVerdict.EXECUTION_ERROR
 
 
 def test_equivalence_gold_error(retail: SandboxExecutor) -> None:
     gen = _exec(retail, "SELECT * FROM orders")
     gold = _exec(retail, "SELECT * FRM orders")
-    result = semantic_equivalence(gen, gold)
+    result = semantic_equivalence(gen, gold, gold_sql="")
     assert result.verdict == EquivalenceVerdict.GOLD_ERROR
 
 
@@ -431,7 +431,9 @@ def test_governance_indexed_lookup_allowed(retail: SandboxExecutor) -> None:
 def test_governance_scan_check_without_executor_fails_closed() -> None:
     policy = AccessPolicy(name="no-scans", forbid_expensive_scans=True)
     result = govern("SELECT * FROM orders", policy, None)
-    assert result.verdict == GovernanceVerdict.BLOCK_EXPENSIVE_SCAN
+    # Distinct verdict: nothing was measured, so claiming BLOCK_EXPENSIVE_SCAN
+    # would misattribute to metrics consumers counting verdict values.
+    assert result.verdict == GovernanceVerdict.BLOCK_SCAN_CHECK_UNAVAILABLE
 
 
 def test_governance_gold_query_allowed_by_default(retail: SandboxExecutor) -> None:
@@ -478,7 +480,7 @@ def test_end_to_end_sample_fixture() -> None:
         # with SELECT 1's. That is a known execution-accuracy false positive
         # on tiny fixtures, documented here instead of hidden.
         mock_out = executor.execute("SELECT 1;")
-        equiv = semantic_equivalence(mock_out, gold_out)
+        equiv = semantic_equivalence(mock_out, gold_out, gold_sql=gold_sql)
         if list(gold_out.rows) == [(1,)]:
             assert equiv.verdict == EquivalenceVerdict.EQUIVALENT
         else:

@@ -291,14 +291,17 @@ runaway queries. Never raises for query failures — returns
 `full_scan_tables` comes from `EXPLAIN QUERY PLAN` and is a first-class
 efficiency signal.
 
-### `semantic_equivalence(generated, gold, gold_sql="") -> EquivalenceResult`
+### `semantic_equivalence(generated, gold, gold_sql) -> EquivalenceResult`
 
 Compares the generated query's *result* against the reference query's:
 `EQUIVALENT` | `ROW_COUNT_MISMATCH` | `ROW_CONTENT_MISMATCH` |
 `EXECUTION_ERROR` | `GOLD_ERROR`. Order-insensitive unless the gold SQL carries
-`ORDER BY`. Known limitation, documented not hidden: on tiny fixtures two
-different queries can return the same 1×1 result (e.g. `COUNT(*)` = 1 vs
-`SELECT 1`) — execution-based equivalence has false positives there.
+`ORDER BY` (`gold_sql` is required, not defaulted — a silent default would
+weaken the check unnoticed). Known limitations, documented not hidden:
+execution-based equivalence has false positives on tiny fixtures — two
+different queries returning the same 1×1 result (e.g. `COUNT(*)` = 1 vs
+`SELECT 1`), and same values under different column *names* (only row tuples
+are compared).
 
 ### `measure_retrieval(selected, gold_tables, required_fks, latency_ms)`
 
@@ -323,10 +326,14 @@ Declared-in-advance access contract (like `EscalationPolicy`): `restricted_table
 plus optional `forbid_expensive_scans`. `govern` returns `ALLOW` or a blocking
 verdict — `BLOCK_UNPARSEABLE` (fail-closed: what the checker cannot parse it
 blocks), `BLOCK_MULTI_STATEMENT`, `BLOCK_UNSAFE_STATEMENT`,
-`BLOCK_RESTRICTED_TABLE`, `BLOCK_EXPENSIVE_SCAN` — with *every* fired reason
-recorded for metrics. `run_battery(policy, executor)` runs the pinned
-adversarial cases (stacked `DROP TABLE`, UNION exfiltration of a restricted
-table, case-evasion, DML smuggling, unparseable input, benign controls).
+`BLOCK_RESTRICTED_TABLE`, `BLOCK_EXPENSIVE_SCAN`,
+`BLOCK_SCAN_CHECK_UNAVAILABLE` (scan refusal declared but no plan provider
+given — nothing was measured, so the verdict does not claim a scan) — with
+*every* fired reason recorded for metrics. The optional third argument is a
+`PlanProvider` (anything with `explain(sql)`), not the concrete sandbox:
+the governance/sandbox seam stays one-directional. `run_battery(policy, executor)`
+runs the pinned adversarial cases (stacked `DROP TABLE`, UNION exfiltration of a
+restricted table, case-evasion, DML smuggling, unparseable input, benign controls).
 
 Run the whole battery offline with the mock LLM:
 

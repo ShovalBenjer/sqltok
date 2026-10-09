@@ -31,6 +31,9 @@ class ExecutionOutcome:
             signal from the evaluation chapter).
         error: ``"<ExceptionClass>: <message>"`` when ``ok`` is False, else
             ``None``.
+        error_class: The exception class name alone (``None`` when ``ok``),
+            for typed consumers that count failures by class without parsing
+            the message string.
         elapsed_ms: Wall-clock execution time in milliseconds.
         plan: ``EXPLAIN QUERY PLAN`` detail strings (empty when ``ok`` is
             False).
@@ -44,6 +47,7 @@ class ExecutionOutcome:
     ok: bool
     rows: tuple[tuple[object, ...], ...] = ()
     error: str | None = None
+    error_class: str | None = None
     elapsed_ms: float = 0.0
     plan: tuple[str, ...] = ()
     full_scan_tables: tuple[str, ...] = field(default_factory=tuple)
@@ -120,12 +124,12 @@ class SandboxExecutor:
         """
         try:
             conn = self._connect()
-        except sqlite3.Error as exc:
+        except Exception as exc:  # fail-closed by contract
             return False, (), (), f"{type(exc).__name__}: {exc}"
         try:
             try:
                 plan_rows = conn.execute(f"EXPLAIN QUERY PLAN {sql}").fetchall()
-            except sqlite3.Error as exc:
+            except Exception as exc:  # fail-closed by contract
                 return False, (), (), f"{type(exc).__name__}: {exc}"
             plan = tuple(str(row[3]) for row in plan_rows)
             return True, plan, self._full_scans(plan), None
@@ -136,19 +140,24 @@ class SandboxExecutor:
         """Run one SQL statement in the sandbox and capture the outcome."""
         try:
             conn = self._connect()
-        except sqlite3.Error as exc:
-            return ExecutionOutcome(ok=False, error=f"{type(exc).__name__}: {exc}")
+        except Exception as exc:  # fail-closed by contract
+            return ExecutionOutcome(
+                ok=False,
+                error=f"{type(exc).__name__}: {exc}",
+                error_class=type(exc).__name__,
+            )
         try:
             start = time.perf_counter()
             try:
                 cursor = conn.execute(sql)
                 rows = tuple(tuple(row) for row in cursor.fetchall())
                 elapsed_ms = (time.perf_counter() - start) * 1000.0
-            except sqlite3.Error as exc:
+            except Exception as exc:  # fail-closed by contract
                 elapsed_ms = (time.perf_counter() - start) * 1000.0
                 return ExecutionOutcome(
                     ok=False,
                     error=f"{type(exc).__name__}: {exc}",
+                    error_class=type(exc).__name__,
                     elapsed_ms=elapsed_ms,
                 )
             try:

@@ -34,9 +34,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import sqlglot
+from eval_recall import gold_tables  # noqa: E402
 from llm import build_client  # noqa: E402
-from sqlglot import exp
 
 from sqltok import (  # noqa: E402
     AccessPolicy,
@@ -49,6 +48,7 @@ from sqltok import (  # noqa: E402
     introspect_sqlite,
     measure_retrieval,
     repair_metrics,
+    resolve_scan_tables,
     run_battery,
     semantic_equivalence,
 )
@@ -102,14 +102,6 @@ class BatteryTotals:
             "questions_with_full_scan": self.full_scans,
             "retrieval_per_budget": self.retrieval,
         }
-
-
-def gold_tables(sql: str, valid: set[str]) -> set[str]:
-    try:
-        names = {t.name.lower() for t in sqlglot.parse_one(sql, read="sqlite").find_all(exp.Table)}
-    except Exception:
-        return set()
-    return {n for n in names if n in valid}
 
 
 def main() -> None:
@@ -218,13 +210,12 @@ def main() -> None:
             if gen_out.full_scan_tables:
                 totals.full_scans += 1
         else:
-            err_class = (gen_out.error or "unknown").split(":")[0]
-            totals.exec_errors[err_class] += 1
+            totals.exec_errors[gen_out.error_class or "unknown"] += 1
         equiv = semantic_equivalence(gen_out, gold_out, gold_sql=gold_sql)
         totals.equivalence[equiv.verdict.value] += 1
         qrec["execution_ok"] = gen_out.ok
         qrec["equivalence"] = equiv.verdict.value
-        qrec["full_scan_tables"] = list(gen_out.full_scan_tables)
+        qrec["full_scan_tables"] = list(resolve_scan_tables(generated, gen_out.full_scan_tables))
 
         # Repair arm — SYNTHETIC fixture (see _ScriptedGenerator).
         broken = gold_sql.replace("SELECT", "SELEC", 1)
