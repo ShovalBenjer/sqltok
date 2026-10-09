@@ -18,7 +18,6 @@ coverage gate — is a blocking finding regardless of diff size.
 
 ## Paths to skip (generated — never comment on style)
 
-- `assets/diagrams/*.svg`, `site/assets/**` — generated from `docs/diagrams/*.mmd`.
 - `benchmarks/sample_data/**`, `benchmarks/results/**` — fixtures and outputs.
 - `uv.lock` — generated lockfile; comment only on direct-dependency changes.
 - `demo/` — throwaway demo app, not shipped code.

@@ -75,7 +75,26 @@ print(ctx.token_count) # measured, guaranteed at or below the budget
 
 Three working stages and a guarantee. Read the full, illustrated walkthrough in [the visual guide](posts/visual-guide-to-sqltok/index.qmd).
 
-![](assets/diagrams/pipeline.svg){fig-alt="SQLTok pipeline: grounding, coverage, foreign-key Steiner connectivity, and a measured budget"}
+<!-- Canonical diagram source: docs/diagrams/pipeline.mmd — edit the Mermaid there and keep this block in sync. -->
+```{mermaid}
+#| fig-alt: "SQLTok pipeline: grounding, coverage, foreign-key Steiner connectivity, and a measured budget"
+flowchart LR
+    A["Question"] --> B["Stage 1:\nValue grounding\n(MinHash + LSH)"]
+    C["Schema"] --> B
+    D["Token budget"] --> F
+
+    B -->|"cover[table, mention]\n+ weights"| E["Stage 2:\nSubmodular\nbudgeting\n(CELF greedy)"]
+    E -->|"selected tables"| G["Stage 3:\nFK Steiner\nconnectivity\n(bridge tables)"]
+    G -->|"join-connected\nselection"| H["Stage 4:\nBudget guarantee\n(tiktoken re-measure)"]
+    D --> H
+
+    H -->|"<= budget"| I["Compact CREATE TABLE\nschema string"]
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#f9f,stroke:#333,stroke-width:2px
+    style I fill:#9f9,stroke:#333,stroke-width:2px
+```
 
 1. **Grounding** maps question mentions to tables, columns, and sampled cell values using a native MinHash and LSH index.
 2. **Coverage** selects tables by submodular maximum coverage under the token budget, with a `(1 - 1/e)` guarantee.
