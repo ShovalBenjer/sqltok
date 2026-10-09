@@ -13,18 +13,20 @@ python --version   # 3.11 or later
 
 ## Installation
 
-Install from PyPI:
+SQLTok is not published to PyPI yet (the release path is documented in
+[`RUNBOOK.md`](../RUNBOOK.md) §2 and needs a maintainer to cut a GitHub
+release). Until then, install from git:
 
 ```bash
-pip install sqltok
+pip install "git+https://github.com/ShovalBenjer/sqltok.git"
 ```
 
 Optional extras:
 
 ```bash
-pip install sqltok[embeddings]   # sentence-transformers for dense retrieval
-pip install sqltok[benchmark]    # anthropic, openai clients for live LLM runs
-pip install sqltok[dev]          # pytest, hypothesis, ruff, mypy for contributors
+pip install "sqltok[embeddings] @ git+https://github.com/ShovalBenjer/sqltok.git"   # sentence-transformers for dense retrieval
+pip install "sqltok[benchmark] @ git+https://github.com/ShovalBenjer/sqltok.git"    # anthropic, openai clients for live LLM runs
+pip install "sqltok[dev] @ git+https://github.com/ShovalBenjer/sqltok.git"          # pytest, hypothesis, ruff, mypy for contributors
 ```
 
 Verify the install:
@@ -33,6 +35,9 @@ Verify the install:
 python -c "import sqltok; print(sqltok.__version__)"
 # 0.1.0
 ```
+
+Core dependencies (`tiktoken`, `bm25s`, `sqlglot`, `numpy`) install
+automatically with the package.
 
 ## First query
 
@@ -191,14 +196,17 @@ print(f"Baseline tokens: {mgr.count_tokens(baseline)}")
 
 ## Troubleshooting
 
-### "ModuleNotFoundError: No module named 'tiktoken'"
+### `pip install sqltok` fails with “No matching distribution”
 
-Install the core dependency: `pip install tiktoken`. If you are in a virtual
-environment, make sure it is activated.
+SQLTok is not on PyPI yet. Install from git until the first release is cut
+(see the [Installation](#installation) section); the PyPI release itself is
+tracked in `RUNBOOK.md` §2.
 
-### "ModuleNotFoundError: No module named 'bm25s'"
+### "ModuleNotFoundError" for a core dependency (`tiktoken`, `bm25s`, …)
 
-`bm25s` is a core dependency. Reinstall: `pip install sqltok`.
+Core dependencies install automatically with the package. This error means you
+are running a different Python or virtual environment than the one you
+installed into — activate the right environment and reinstall from git.
 
 ### Token budget too tight
 
@@ -245,15 +253,17 @@ Execution accuracy is scored with the official BIRD script; see
 
 ## Real-world example: SQLite Northwind schema
 
-The classic Northwind schema is a good hands-on example. Create the database,
-then query it:
+The classic Northwind schema is a good hands-on example. Save it to a file,
+then query it. (`from_sqlite` opens its own connection, so an in-memory
+database created in your script is not visible to it — always pass a
+file path.)
 
 ```python
 import sqlite3
 from sqltok import SchemaBudgetManager
 
-# Create a minimal Northwind in memory.
-conn = sqlite3.connect(":memory:")
+# Create a minimal Northwind database on disk.
+conn = sqlite3.connect("northwind.sqlite")
 conn.executescript("""
 CREATE TABLE customers (
   customer_id INTEGER PRIMARY KEY,
@@ -289,41 +299,10 @@ INSERT INTO order_details VALUES (1, 2, 9.8, 10);
 INSERT INTO products VALUES (1, 'Chai', 'Beverages', 18.0);
 INSERT INTO products VALUES (2, 'Chang', 'Beverages', 19.0);
 """)
+conn.commit()
 conn.close()
 
-mgr = SchemaBudgetManager.from_sqlite(":memory:")
-# The manager has already loaded the schema above; rebuild from the file.
-# In practice you would pass the file path:
-# mgr = SchemaBudgetManager.from_sqlite("northwind.sqlite")
-
-# Alternatively, from the DDL directly:
-ddl = """
-CREATE TABLE customers (
-  customer_id INTEGER PRIMARY KEY,
-  company_name TEXT NOT NULL,
-  country TEXT
-);
-CREATE TABLE orders (
-  order_id INTEGER PRIMARY KEY,
-  customer_id INTEGER NOT NULL REFERENCES customers(customer_id),
-  order_date TEXT,
-  freight REAL
-);
-CREATE TABLE order_details (
-  order_id INTEGER NOT NULL REFERENCES orders(order_id),
-  product_id INTEGER NOT NULL,
-  unit_price REAL NOT NULL,
-  quantity INTEGER NOT NULL,
-  PRIMARY KEY (order_id, product_id)
-);
-CREATE TABLE products (
-  product_id INTEGER PRIMARY KEY,
-  product_name TEXT NOT NULL,
-  category TEXT,
-  unit_price REAL
-);
-"""
-mgr = SchemaBudgetManager.from_ddl(ddl)
+mgr = SchemaBudgetManager.from_sqlite("northwind.sqlite")
 
 ctx = mgr.build_context(
     question="total freight for orders by customers in Austria",
@@ -338,29 +317,40 @@ print()
 print(ctx.text)
 ```
 
-Expected output (selected tables may vary slightly depending on mention
-grounding, but `customers` and `orders` will be selected because "Austria"
-grounds to `customers` and "freight" grounds to `orders`):
+Expected output, measured with `tiktoken` (`cl100k_base`) against the
+`northwind.sqlite` file built above (“Austria” grounds to
+`customers`, “freight” grounds to `orders`, and the FK bridge pulls
+in `order_details`):
 
 ```
-Selected tables: ['customers', 'orders']
-Token count: 200   # measured, well within budget
-Coverage: 100%
+Selected tables: ['orders', 'customers', 'order_details']
+Token count: 184
+Coverage: 71%
+
+CREATE TABLE orders (
+  order_id INTEGER PRIMARY KEY,
+  customer_id INTEGER NOT NULL,
+  order_date TEXT,
+  freight REAL,
+  FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+);
+-- example row: order_id=1, customer_id=1, order_date='2026-01-15', freight=32.38
 
 CREATE TABLE customers (
   customer_id INTEGER PRIMARY KEY,
   company_name TEXT NOT NULL,
   country TEXT
 );
--- example row: customer_id=1, company_name=Ernst Handel, country=Austria
+-- example row: customer_id=1, company_name='Ernst Handel', country='Austria'
 
-CREATE TABLE orders (
+CREATE TABLE order_details (
   order_id INTEGER PRIMARY KEY,
-  customer_id INTEGER NOT NULL REFERENCES customers(customer_id),
-  order_date TEXT,
-  freight REAL
+  product_id INTEGER PRIMARY KEY,
+  unit_price REAL NOT NULL,
+  quantity INTEGER NOT NULL,
+  FOREIGN KEY (order_id) REFERENCES orders(order_id)
 );
--- example row: order_id=1, customer_id=1, order_date=2026-01-15, freight=32.38
+-- example row: order_id=1, product_id=1, unit_price=14.0, quantity=12
 ```
 
 ## Performance expectations
