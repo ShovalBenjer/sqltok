@@ -219,9 +219,9 @@ is a *single* edge here: multi-column keys join two tables once, not once per
 column.
 
 ```python
+schema = introspect_sqlite("benchmarks/sample_data/dev_databases/school/school.sqlite")
 for src, fk in schema.fk_edges():
     print(f"{src}.{','.join(fk.local_cols)} -> {fk.ref_table}.{','.join(fk.ref_cols)}")
-# on the bundled benchmarks sample database (school.sqlite):
 # students.school_id -> schools.id
 ```
 
