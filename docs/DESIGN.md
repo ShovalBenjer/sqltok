@@ -22,7 +22,7 @@ fails in three specific ways that SQLTok is designed to handle.
 | Limitation of keyword retrieval | How SQLTok handles it |
 | --- | --- |
 | Mentions hide in cell values. "France" is a value in `customers.country`, never a column name, so keyword search over names misses it. | Native value grounding with MinHash and banded LSH over sampled cell values. |
-| Top-k ignores the budget and redundancy. It can exceed the token ceiling or select several tables covering the same content. | Submodular coverage under a hard token budget, where diminishing returns remove redundancy and yield a `(1 - 1/e)` approximation guarantee. |
+| Top-k ignores the budget and redundancy. It can exceed the token ceiling or select several tables covering the same content. | Submodular coverage under a hard token budget, where diminishing returns remove redundancy and yield a constant-factor approximation guarantee (about 0.32 under the token knapsack; 0.63 under a cardinality relaxation). |
 | Retrieved tables may not be joinable. Two relevant tables with no foreign-key path lead the model to invent joins. | Foreign-key Steiner connectivity adds bridge tables along shortest FK paths so the selection stays joinable. |
 
 BM25 is retained as the baseline selector (`RelevanceGreedySelector`) so that
@@ -136,8 +136,11 @@ f(S) = sum over mentions m of  weight(m) * max over tables T in S of cover(m, T)
 Each mention scores through the single best table that covers it. The use of
 `max` gives diminishing returns: once a mention is covered, another table that
 covers it adds zero marginal value, so redundancy is handled automatically and
-`f` is monotone and submodular. For such functions, the greedy maximizer has the
-classic `(1 - 1/e)`, about 0.63, approximation guarantee.
+`f` is monotone and submodular. Under a cardinality constraint the greedy
+maximizer has the classic `(1 - 1/e)`, about 0.63, approximation guarantee; under
+per-table token costs (a knapsack) the cost-benefit ratio greedy plus the
+best-single-table comparison recovers a weaker constant factor — roughly
+`(1 - 1/e) / 2`, about 0.32 (Khuller, Moss, and Naor).
 
 Tables have different token costs, so selection is a knapsack. At each step
 SQLTok picks the table that maximizes marginal gain divided by token cost, which
@@ -229,7 +232,9 @@ the algorithm is frozen, and there is a detailed plan for that migration.
 
 On BIRD mini-dev (500 questions, 11 SQLite databases), measured with `tiktoken`
 (`cl100k_base`). Baseline is the full schema dump with one sample row per table.
-Numbers below are taken verbatim from `benchmarks/RESULTS.md`.
+Numbers below are taken verbatim from `benchmarks/RESULTS.md` as of 2026-07-02
+(commit `626ce51`); if the tables below ever disagree with that file, the file
+wins.
 
 ### Schema-linking recall
 
@@ -245,7 +250,7 @@ is the ceiling on achievable execution accuracy.
 ### Token reduction
 
 | Arm | Schema tokens (mean) | Total input tokens | Total input reduction |
-| --- | ---: | ---: | ---: | --- |
+| --- | ---: | ---: | --- |
 | Baseline (full dump) | 1161 | 629,819 | Reference |
 | SQLTok at 1000 | 703 | 401,285 | 36.3% |
 | SQLTok at 2000 | 944 | 521,760 | 17.2% |
