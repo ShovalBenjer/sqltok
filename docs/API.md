@@ -210,6 +210,20 @@ Return table names in insertion order.
 
 Return a table by name, or `None` if absent.
 
+#### `fk_edges() -> list[tuple[str, ForeignKey]]`
+
+Return every resolvable foreign-key edge as `(source_table, fk)`. Only edges
+whose `ref_table` is present in this schema are returned; self-referencing
+edges are skipped since they add no join connectivity. A composite foreign key
+is a *single* edge here: multi-column keys join two tables once, not once per
+column.
+
+#### `fk_adjacency() -> dict[str, set[str]]`
+
+Return the undirected foreign-key adjacency map for the whole schema, built in
+a single pass over `fk_edges`. Composite foreign keys contribute exactly one
+undirected edge between the two tables they join.
+
 #### `fk_neighbors(name) -> list[str]`
 
 Return tables directly connected to `name` by a foreign key. Includes both
@@ -327,6 +341,12 @@ and a `select` method matching this signature satisfies the protocol.
 from sqltok import SchemaSelector
 ```
 
+### Attributes
+
+| Attribute | Type | Purpose |
+| --- | --- | --- |
+| `name` | `str` | Strategy name, used as the `SchemaContext.selector` label (e.g. `"coverage"`, `"relevance_greedy"`). |
+
 ### Methods
 
 #### `select(question, *, token_budget, counter, include_sample_rows=True, fk_expand=True) -> SchemaContext`
@@ -392,8 +412,10 @@ Build a budgeted, join-connected schema context for `question`.
 - Grounding is near-constant after the initial LSH index build.
 - CELF lazy evaluation reduces hundreds of candidate evaluations to a few heap
   operations.
-- The `fk_min_links=2` setting trades roughly 10 percentage points of full-recall
-  for 60-70% fewer mean schema tokens on BIRD mini-dev.
+- The `fk_min_links=2` setting favours precision and tokens over recall: per
+  `benchmarks/RESULTS.md` (BIRD mini-dev) it yields roughly 81 to 86% full-recall
+  at 553 to 819 mean schema tokens, versus 91.8% full-recall at 703 mean tokens
+  for budget 1000 with the default `fk_min_links=1`.
 
 ---
 
@@ -438,6 +460,17 @@ packing.
 from sqltok import RerankSelector
 ```
 
+### Constructor
+
+```python
+RerankSelector(schema, *, reranker=None)
+```
+
+| Parameter | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `schema` | `Schema` | required | The schema to select from. |
+| `reranker` | `object` or `None` | `None` | Reserved for the v0.2 cross-encoder backend. |
+
 Calling `select` raises `NotImplementedError`.
 
 ---
@@ -450,6 +483,17 @@ style).
 ```python
 from sqltok import AgenticSelector
 ```
+
+### Constructor
+
+```python
+AgenticSelector(schema, *, llm=None)
+```
+
+| Parameter | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `schema` | `Schema` | required | The schema to select from. |
+| `llm` | `object` or `None` | `None` | Reserved for the v0.2 LLM-driven discovery backend. |
 
 Calling `select` raises `NotImplementedError`.
 
@@ -505,7 +549,7 @@ print(gq.cover.shape)  # (num_tables, num_mentions)
 The result of grounding one question against a schema.
 
 ```python
-from sqltok import GroundedQuery
+from sqltok.grounding import GroundedQuery
 ```
 
 ### Fields
@@ -678,3 +722,55 @@ schema = introspect_sqlite("db.sqlite", sample_rows=3, max_sample_values=5)
 Memory usage is dominated by the LSH signature matrix
 (`num_perm * num_schema_strings` integers). For a 100-table schema with ~20
 strings per table, this is roughly 64 * 2000 * 8 bytes ~ 1 MB.
+
+## Measured benchmark results (`benchmarks/RESULTS.md`)
+
+Deterministic numbers on BIRD mini-dev (500 questions, 11 SQLite databases;
+`tiktoken` `cl100k_base`; no model needed). Baseline: full schema dump with one
+sample row per table. SQLTok: default `CoverageSelector` (value grounding,
+submodular coverage, FK-neighbour expansion, FK-Steiner connectivity) at
+budgets 1000, 2000, 4000.
+
+### Schema-linking recall vs BIRD gold SQL
+
+| budget | table recall | full-recall rate | precision | avg tables |
+| ---: | ---: | ---: | ---: | ---: |
+| 1000 | 96.3% | 91.8% | 42.8% | 5.45 |
+| 2000 | 99.0% | 97.4% | 40.7% | 6.11 |
+| 4000 | 99.0% | 97.4% | 39.8% | 6.24 |
+
+### Token reduction
+
+| arm | schema tokens (mean) | schema tokens (p95) | total input tokens | total input reduction |
+| --- | ---: | ---: | ---: | ---: |
+| baseline (full dump) | 1161 | 2961 | 629,819 | reference |
+| sqltok at 1000 | 703 | 993 | 401,285 | 36.3% |
+| sqltok at 2000 | 944 | 1698 | 521,760 | 17.2% |
+| sqltok at 4000 | 1064 | 2879 | 581,559 | 7.7% |
+
+Reading these honestly: budget 2000 is the sweet spot — 97.4% full-recall at
+17% fewer total prompt tokens; budget 1000 trades recall (91.8%) for larger
+savings (36%). The token reduction looks modest because BIRD schemas are small
+(the full dump averages only 1161 tokens); savings grow with schema size since
+the baseline scales with the database while SQLTok stays at the budget. Setting
+`CoverageSelector(schema, fk_min_links=2)` favours precision and tokens over
+recall: roughly 81 to 86% full-recall at 553 to 819 mean tokens. Execution
+accuracy needs a real LLM run and is pending (see `benchmarks/RESULTS.md` for
+the Ollama path).
+
+## Selection and grounding internals (`sqltok.select` / `sqltok.grounding`)
+
+Public in their subpackages but not re-exported at the top level.
+
+```python
+from sqltok.select import SLMSchemaRouter, BudgetPacker, connect_selection
+from sqltok.grounding import MinHasher, LSHIndex, extract_mentions
+```
+
+- `SLMSchemaRouter(schema, *, backend=None, fallback=None, retriever=None, max_candidates=12, uncertainty_margin=0.25, decisions_log=None)` — selector that routes uncertain tables to a small-LM reranker; `decisions()` returns the logged routing decisions.
+- `SLMBackend` — protocol for rerank backends (`available()`, `rerank(question, candidates, table_docs)`).
+- `OllamaSLMBackend(model=..., host=...)` — rerank via a local Ollama model; `HeuristicFallbackBackend` — hand-coded-rules fallback used when no backend is `available()`.
+- `BudgetPacker(schema, token_budget, counter, include_sample_rows)` — the token-budget packing primitive selectors build on: `try_add(name)`, `contains(name)`, `standalone_cost(name)`, `render()`, `token_count()`.
+- `connect_selection(packer) -> None` — pull in foreign-key Steiner bridges so a selection is join-connected; `expand_fk_neighbors(packer, seeds, *, min_links=1)` — the neighbour-expansion step.
+- `MinHasher(num_perm=64, seed=1)` — `signature(tokens)` and `estimate_jaccard(sig_a, sig_b)`; `LSHIndex(num_perm=64, bands=32, rows=2, seed=1)` — `add(shingles, payload)` / `query(shingles)` banded-LSH candidate lookup over `LSHCandidate(payload, score)` entries.
+- `extract_mentions(question, max_ngram)` / `word_tokens(text)` / `char_shingles(text, n)` — text helpers behind grounding.
