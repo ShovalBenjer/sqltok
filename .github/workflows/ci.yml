@@ -60,3 +60,4 @@ jobs:
           python benchmarks/make_sample_data.py
           python benchmarks/run_bird.py --provider mock \
             --data-dir benchmarks/sample_data --limit 5
+          python benchmarks/eval_execution.py --data-dir benchmarks/sample_data

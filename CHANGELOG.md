@@ -7,6 +7,29 @@ Keep a Changelog, and the project adheres to Semantic Versioning.
 
 ### Added
 
+- Execution-grounded Text2SQL evaluation battery (issue #43): syntax-valid SQL
+  is not semantically-correct SQL, so generated queries are now evaluated by
+  *running* them. New modules `sqltok/eval_sandbox.py` (`SandboxExecutor`:
+  read-only SQLite execution with a VM-operation budget, failures captured as
+  `ExecutionOutcome` never raised, `EXPLAIN QUERY PLAN` full-scan signal),
+  `sqltok/eval_equivalence.py` (`semantic_equivalence`: generated-vs-reference
+  result comparison, `EQUIVALENT`/`ROW_COUNT_MISMATCH`/`ROW_CONTENT_MISMATCH`/
+  `EXECUTION_ERROR`/`GOLD_ERROR`), `sqltok/eval_retrieval.py`
+  (`measure_retrieval`: recall, precision, full-recall, FK-edge coverage,
+  latency — the under/over-retrieval distinction), `sqltok/eval_repair.py`
+  (`RepairLoop`: generate → execute → error-feedback retry, exhaustion falls
+  back to a declared `EscalationPolicy` with unhandled failures recorded as
+  their own metric; `repair_metrics` aggregation), `sqltok/eval_governance.py`
+  (`AccessPolicy` declared in advance like `EscalationPolicy`, `govern`
+  fail-closed: unparseable/multi-statement/unsafe/restricted-table/
+  expensive-scan blocks, `run_battery` pinning 11 adversarial cases).
+  `benchmarks/eval_execution.py` runs the whole battery offline on the sample
+  fixture with the mock LLM (see `benchmarks/RESULTS.md` for measured
+  numbers). 42 adversarial tests in `tests/test_eval_grounded.py`, including
+  the chapter's canonical executes-fine-but-wrong query. Named gap:
+  entity-grounding precision needs annotated question entities the fixtures
+  do not carry, so it is not faked.
+
 - Escalation protocol with first-class states (issue #38): escalation-to-human
   is now a designed branch of the selection protocol, not a failure mode. New
   `sqltok/escalation.py` declares `DecisionState` (`SERVED`/`ESCALATED`, a

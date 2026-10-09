@@ -70,3 +70,38 @@ python benchmarks/run_bird.py --provider ollama --model qwen2.5-coder:7b \
 Hosted providers work the same way if you prefer (`--provider anthropic` or
 `--provider openai`, reading the usual env keys), but they are optional. The
 local path costs nothing.
+
+## Execution-grounded evaluation battery (#43)
+
+`python benchmarks/eval_execution.py --data-dir benchmarks/sample_data`
+(mock LLM, offline, deterministic). The battery governance-checks every
+generated query, runs it in a read-only budgeted sandbox, and compares the
+result against the trusted reference query.
+
+| signal | measured |
+| --- | --- |
+| execution success rate | 100.0% (mock emits canned `SELECT 1;`) |
+| null-result rate | 0.0% |
+| semantic equivalence vs gold | 4× `row_content_mismatch`, 1× `equivalent` |
+| governance verdicts | 5× `allow` |
+| questions with full table scan | 0 (the mock's canned `SELECT 1;` reads no tables; the plan pseudo-step `SCAN CONSTANT ROW` is excluded from the signal by construction) |
+
+The single `equivalent` is a documented degenerate case, not a success:
+question 4's gold is `COUNT(*) = 1` on this fixture, whose 1×1 result `[(1,)]`
+coincides with the mock's `SELECT 1`. Execution-based equivalence has known
+false positives on tiny fixtures.
+
+| budget | recall | precision | full-recall | fk-recall (n) | latency |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1000 | 100.0% | 60.0% | 100.0% | 100.0% (3) | 2.7 ms |
+| 2000 | 100.0% | 60.0% | 100.0% | 100.0% (3) | 2.0 ms |
+
+Repair arm (synthetic fixture — a scripted generator emitting one broken query
+then the gold query; measures loop mechanics, not model ability):
+repair success 100.0%, mean attempts 2.00, escalation 0.0%, unhandled 0.0%.
+
+Adversarial governance battery: 11/11 pinned cases behave as expected
+(stacked `DROP TABLE`, UNION exfiltration, DML smuggling, case-evasion,
+unparseable input blocked; benign reads allowed).
+
+Reproduce: `python benchmarks/eval_execution.py --data-dir benchmarks/sample_data`
