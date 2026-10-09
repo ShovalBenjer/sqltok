@@ -261,6 +261,85 @@ representable in these types.
 
 ---
 
+## Execution-grounded evaluation (`sqltok.eval_*`)
+
+Syntax-valid SQL is not semantically-correct SQL: a query can execute
+successfully yet be wrong (the canonical case — asking for revenue from
+*active* customers, generating valid SQL that sums *all* invoices). These
+modules evaluate generated SQL by *running* it, in a sandbox, against a
+trusted reference.
+
+```python
+from pathlib import Path
+from sqltok import (
+    SandboxExecutor,
+    semantic_equivalence,
+    measure_retrieval,
+    RepairLoop,
+    AccessPolicy,
+    govern,
+    run_battery,
+)
+```
+
+### `SandboxExecutor(db_path, operation_budget=10_000_000)`
+
+Runs one SQL statement against a SQLite file: opened read-only (`mode=ro`
+plus `PRAGMA query_only = ON`), with a VM-operation budget that aborts
+runaway queries. Never raises for query failures — returns
+`ExecutionOutcome(ok, rows, error, elapsed_ms, plan, full_scan_tables)`.
+`full_scan_tables` comes from `EXPLAIN QUERY PLAN` and is a first-class
+efficiency signal.
+
+### `semantic_equivalence(generated, gold, gold_sql="") -> EquivalenceResult`
+
+Compares the generated query's *result* against the reference query's:
+`EQUIVALENT` | `ROW_COUNT_MISMATCH` | `ROW_CONTENT_MISMATCH` |
+`EXECUTION_ERROR` | `GOLD_ERROR`. Order-insensitive unless the gold SQL carries
+`ORDER BY`. Known limitation, documented not hidden: on tiny fixtures two
+different queries can return the same 1×1 result (e.g. `COUNT(*)` = 1 vs
+`SELECT 1`) — execution-based equivalence has false positives there.
+
+### `measure_retrieval(selected, gold_tables, required_fks, latency_ms)`
+
+The under/over-retrieval distinction as numbers: `recall`, `precision`,
+`full_recall` (every gold table selected — the ceiling on achievable execution
+accuracy), `fk_recall` (fraction of required FK edges with both endpoints
+selected; `None` when the question needs no joins), `latency_ms` (timed by
+the caller around the real selector call).
+
+### `RepairLoop(executor, generate, max_attempts=3, escalation_policy=None)`
+
+Generate → sandbox-execute → on failure feed the *error text* back as
+feedback → retry. On exhaustion the declared `EscalationPolicy` is evaluated
+and the resulting case — or its absence, recorded as unhandled — is kept on
+the `RepairReport`. `repair_metrics(reports)` aggregates `repair_success_rate`
+(conditioned on questions that needed repair), `mean_attempts`,
+`escalation_rate`, `unhandled_rate`.
+
+### `AccessPolicy` / `govern(sql, policy, executor=None)`
+
+Declared-in-advance access contract (like `EscalationPolicy`): `restricted_tables`
+plus optional `forbid_expensive_scans`. `govern` returns `ALLOW` or a blocking
+verdict — `BLOCK_UNPARSEABLE` (fail-closed: what the checker cannot parse it
+blocks), `BLOCK_MULTI_STATEMENT`, `BLOCK_UNSAFE_STATEMENT`,
+`BLOCK_RESTRICTED_TABLE`, `BLOCK_EXPENSIVE_SCAN` — with *every* fired reason
+recorded for metrics. `run_battery(policy, executor)` runs the pinned
+adversarial cases (stacked `DROP TABLE`, UNION exfiltration of a restricted
+table, case-evasion, DML smuggling, unparseable input, benign controls).
+
+Run the whole battery offline with the mock LLM:
+
+```bash
+python benchmarks/eval_execution.py --data-dir benchmarks/sample_data
+```
+
+Entity-grounding precision is a named gap: the fixtures carry no annotated
+question entities, so the battery measures table-level recall/precision plus
+FK coverage and latency, and does not fake the entity level.
+
+---
+
 ## Schema
 
 A collection of tables keyed by name (insertion-ordered).

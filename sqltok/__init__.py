@@ -30,6 +30,33 @@ from .escalation import (
     ScoredDecision,
     summarize,
 )
+from .eval_equivalence import (
+    EquivalenceResult,
+    EquivalenceVerdict,
+    semantic_equivalence,
+)
+from .eval_governance import (
+    ADVERSARIAL_CASES,
+    AccessPolicy,
+    AdversarialCase,
+    BatteryCaseResult,
+    BatteryReport,
+    GovernanceResult,
+    GovernanceVerdict,
+    govern,
+    resolve_scan_tables,
+    run_battery,
+)
+from .eval_repair import (
+    GeneratorFn,
+    RepairAttempt,
+    RepairLoop,
+    RepairMetrics,
+    RepairReport,
+    repair_metrics,
+)
+from .eval_retrieval import RetrievalReport, measure_retrieval
+from .eval_sandbox import ExecutionOutcome, SandboxExecutor
 from .grounding import SchemaGrounding
 from .introspect import introspect_sqlite
 from .manager import SchemaBudgetManager
@@ -73,5 +100,28 @@ __all__ = [
     "EscalationReport",
     "ScoredDecision",
     "summarize",
+    "SandboxExecutor",
+    "ExecutionOutcome",
+    "EquivalenceVerdict",
+    "EquivalenceResult",
+    "semantic_equivalence",
+    "RetrievalReport",
+    "measure_retrieval",
+    "GeneratorFn",
+    "RepairAttempt",
+    "RepairReport",
+    "RepairLoop",
+    "RepairMetrics",
+    "repair_metrics",
+    "AccessPolicy",
+    "GovernanceVerdict",
+    "GovernanceResult",
+    "govern",
+    "resolve_scan_tables",
+    "AdversarialCase",
+    "ADVERSARIAL_CASES",
+    "BatteryCaseResult",
+    "BatteryReport",
+    "run_battery",
     "__version__",
 ]
