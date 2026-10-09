@@ -57,7 +57,7 @@ from sqltok import SchemaBudgetManager
 mgr = SchemaBudgetManager.from_sqlite("path/to/db.sqlite")
 ctx = mgr.build_context(
     question="What was the total order amount for customers in France?",
-    token_budget=2000,         # hard ceiling on schema-context tokens
+    token_budget=2000,  # hard ceiling on schema-context tokens
     include_sample_rows=True,  # one example row per included table
 )
 
@@ -67,9 +67,9 @@ prompt = f"""Database schema:
 Question: What was the total order amount for customers in France?
 SQLite query:"""
 
-print(ctx.tables)          # ['customers', 'orders']
-print(ctx.token_count)     # measured with tiktoken, at or below the budget
-print(ctx.bridge_tables)   # foreign-key bridges added to keep the schema joinable
+print(ctx.tables)  # ['customers', 'orders']
+print(ctx.token_count)  # measured with tiktoken, at or below the budget
+print(ctx.bridge_tables)  # foreign-key bridges added to keep the schema joinable
 print(ctx.covered_weight)  # fraction of grounded question mentions covered
 ```
 
