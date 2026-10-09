@@ -35,7 +35,10 @@ class ExecutionOutcome:
         plan: ``EXPLAIN QUERY PLAN`` detail strings (empty when ``ok`` is
             False).
         full_scan_tables: Tables the plan scans without an index. First-class
-            efficiency signal, not an afterthought.
+            efficiency signal, not an afterthought. Plan pseudo-steps
+            (``SCAN CONSTANT ROW``, ``SCAN (subquery-N)``) are excluded;
+            table aliases keep the plan's own spelling — use
+            :func:`sqltok.resolve_scan_tables` to map them to real tables.
     """
 
     ok: bool
@@ -97,8 +100,17 @@ class SandboxExecutor:
             if "USING" in detail.upper():
                 continue
             match = _SCAN_RE.match(detail.strip())
-            if match and match.group(1) not in found:
-                found.append(match.group(1))
+            if not match:
+                continue
+            name = match.group(1)
+            # Plan pseudo-steps name no table: SCAN CONSTANT ROW (a query over
+            # no tables at all) and SCAN (subquery-N). Aliases keep the plan's
+            # own spelling — sqltok.resolve_scan_tables maps them to real
+            # tables for human-facing messages.
+            if name.upper() == "CONSTANT" or name.startswith("("):
+                continue
+            if name not in found:
+                found.append(name)
         return tuple(found)
 
     def explain(self, sql: str) -> tuple[bool, tuple[str, ...], tuple[str, ...], str | None]:

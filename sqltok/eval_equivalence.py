@@ -14,6 +14,9 @@ from collections import Counter
 from dataclasses import dataclass
 from enum import StrEnum
 
+import sqlglot
+from sqlglot import exp
+
 from .eval_sandbox import ExecutionOutcome
 
 
@@ -36,9 +39,15 @@ class EquivalenceResult:
 
 
 def _has_order_by(sql: str) -> bool:
-    # Cheap lexical check is enough here: the caller passes the gold SQL it
-    # already executed, and ordering only matters when the gold demanded it.
-    return "order by" in sql.lower()
+    # Structural check, not a substring search: a string literal containing
+    # the words "order by" must not flip the comparison into ordered mode.
+    if not sql.strip():
+        return False
+    try:
+        parsed = sqlglot.parse_one(sql, read="sqlite")
+    except Exception:
+        return False
+    return parsed is not None and parsed.find(exp.Order) is not None
 
 
 def semantic_equivalence(

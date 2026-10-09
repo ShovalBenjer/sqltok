@@ -116,6 +116,17 @@ def test_sandbox_full_scan_signal(retail: SandboxExecutor) -> None:
     assert "orders" in out.full_scan_tables
 
 
+def test_sandbox_constant_scan_not_a_table(retail: SandboxExecutor) -> None:
+    """Regression: SCAN CONSTANT ROW names no table (product review caught
+    the battery reporting 'CONSTANT' as a scanned table)."""
+    out = retail.execute("SELECT 1;")
+    assert out.ok
+    assert out.full_scan_tables == ()
+    out2 = retail.execute("SELECT * FROM (SELECT 1 AS x);")
+    assert out2.ok
+    assert out2.full_scan_tables == ()
+
+
 def test_sandbox_indexed_lookup_no_full_scan(retail: SandboxExecutor) -> None:
     out = retail.execute("SELECT * FROM customers WHERE id = 1")
     assert out.ok
@@ -179,6 +190,14 @@ def test_equivalence_order_sensitive_when_gold_orders(retail: SandboxExecutor) -
     gold = _exec(retail, "SELECT id FROM customers ORDER BY id ASC")
     result = semantic_equivalence(gen, gold, gold_sql="SELECT id FROM customers ORDER BY id ASC")
     assert result.verdict == EquivalenceVerdict.ROW_CONTENT_MISMATCH
+
+
+def test_equivalence_order_by_in_string_literal_ignored(retail: SandboxExecutor) -> None:
+    """'order by' inside a string literal must not enable ordered comparison."""
+    gen = _exec(retail, "SELECT 'order by' AS x, id FROM customers ORDER BY id DESC")
+    gold = _exec(retail, "SELECT 'order by' AS x, id FROM customers ORDER BY id ASC")
+    result = semantic_equivalence(gen, gold, gold_sql="SELECT 'order by' AS x, id FROM customers")
+    assert result.verdict == EquivalenceVerdict.EQUIVALENT
 
 
 def test_equivalence_execution_error(retail: SandboxExecutor) -> None:

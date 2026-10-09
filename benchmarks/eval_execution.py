@@ -123,7 +123,12 @@ def main() -> None:
     args = p.parse_args()
 
     data_dir = Path(args.data_dir)
-    questions = json.loads((data_dir / "questions.json").read_text())
+    questions_path = data_dir / "questions.json"
+    if not questions_path.exists():
+        raise SystemExit(
+            f"no {questions_path}: run from the repo root with --data-dir benchmarks/sample_data"
+        )
+    questions = json.loads(questions_path.read_text())
     client = build_client(args.provider, args.model)
     policy = AccessPolicy()
     totals = BatteryTotals(n_questions=len(questions))

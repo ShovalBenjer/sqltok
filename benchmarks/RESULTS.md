@@ -84,7 +84,7 @@ result against the trusted reference query.
 | null-result rate | 0.0% |
 | semantic equivalence vs gold | 4× `row_content_mismatch`, 1× `equivalent` |
 | governance verdicts | 5× `allow` |
-| questions with full table scan | 5 (fixture DBs have no secondary indexes) |
+| questions with full table scan | 0 (the mock's canned `SELECT 1;` reads no tables; the plan pseudo-step `SCAN CONSTANT ROW` is excluded from the signal by construction) |
 
 The single `equivalent` is a documented degenerate case, not a success:
 question 4's gold is `COUNT(*) = 1` on this fixture, whose 1×1 result `[(1,)]`
